@@ -1,0 +1,10 @@
+{
+  "name": "App Store Screenshot Studio",
+  "short_name": "Screenshot Studio",
+  "description": "Build upload-ready App Store Connect screenshots and app previews in your browser.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0d0d12",
+  "theme_color": "#0d0d12",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

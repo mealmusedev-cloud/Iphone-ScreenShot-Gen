@@ -1,4 +1,4 @@
-/* Unit tests for the export helpers embedded in iphone-mockup.html.
+/* Unit tests for the export helpers embedded in index.html.
    Needs Node 18+ and ffmpeg/ffprobe on PATH:  node tests/test-lib.mjs */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -10,7 +10,7 @@ const ASSETS = path.join(HERE, '.out', 'assets'); fs.mkdirSync(ASSETS, { recursi
 execSync(`ffmpeg -hide_banner -loglevel error -y -f lavfi -i "testsrc2=size=886x1920:rate=30:duration=3" -c:v libx264 -profile:v high -x264-params bframes=0:keyint=30 -pix_fmt yuv420p "${ASSETS}/ref.mp4"`);
 execSync(`ffmpeg -hide_banner -loglevel error -y -f lavfi -i "sine=frequency=440:duration=3:sample_rate=48000" -ac 2 -c:a aac -b:a 128k -f adts "${ASSETS}/ref.aac"`);
 
-const src = fs.readFileSync(path.join(ROOT, 'iphone-mockup.html'), 'utf8');
+const src = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 const libSrc = src.slice(src.indexOf('/*LIB-START*/'), src.indexOf('/*LIB-END*/'));
 const Bin = new Function(libSrc + '\nreturn Bin;')();
 

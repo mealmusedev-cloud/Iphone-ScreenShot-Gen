@@ -26,7 +26,7 @@ const errors = [];
 page.on('pageerror', e => errors.push('pageerror: ' + e.message));
 page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
 
-const URL_ = 'http://localhost:8911/iphone-mockup.html';
+const URL_ = 'http://localhost:8911/index.html';
 await page.goto(URL_);
 await page.waitForTimeout(600);
 
