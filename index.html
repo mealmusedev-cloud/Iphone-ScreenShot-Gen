@@ -279,11 +279,16 @@
   <section class="sec" data-sec="phone">
     <h2>Device style<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg></h2>
     <div class="body"><div class="inner">
+      <label class="first">iPhone model <span class="hint">exact Apple dimensions</span></label>
+      <select id="model">
+        <option value="17pro">iPhone 17 Pro · 71.85 × 150.01 mm</option>
+        <option value="17promax">iPhone 17 Pro Max · 77.98 × 163.43 mm</option>
+      </select>
       <div class="row">
-        <div><label class="first">Frame color</label>
+        <div><label>Frame color</label>
           <select id="frameColor">
             <option value="titanium">Titanium</option><option value="black">Black</option>
-            <option value="silver">Silver</option><option value="gold">Gold</option><option value="blue">Deep blue</option>
+            <option value="silver">Silver</option><option value="gold">Gold</option><option value="blue">Deep Blue</option><option value="orange">Cosmic Orange</option>
           </select></div>
         <div class="checks" style="padding-bottom:9px"><label><input type="checkbox" id="glare"> Screen glare</label></div>
       </div>
@@ -815,6 +820,7 @@ const FRAMES = {
   silver:  { a:'#e8e8ec', b:'#b9b9c0', c:'#9b9ba3' },
   gold:    { a:'#f3e3c4', b:'#d5b98a', c:'#b3946a' },
   blue:    { a:'#5b6b9a', b:'#2b3657', c:'#1c2440' },
+  orange:  { a:'#f7b98f', b:'#e0773a', c:'#b5561f' },
 };
 
 /* ---------- Style presets: background, device arrangement and typography ---------- */
@@ -912,7 +918,7 @@ function defaultSlide() {
     phones: [{ media: null, scale: 0.88, tilt: 0, x: 0, y: 0 }],
     bgType: 'linear', bg1: '#4f46e5', bg2: '#9333ea', bgAngle: 135,
     shapes: 'none', shapeColor: '#ffffff', shapeAlpha: 0.12, grain: 0, vignette: 0,
-    frameColor: 'titanium', shadowStr: 1, glow: 0, glowColor: '#ffffff', glare: false,
+    model: '17pro', frameColor: 'titanium', shadowStr: 1, glow: 0, glowColor: '#ffffff', glare: false,
     fillMode: false,
     headline: '', sub: '', badge: '', badgeBg: '#111114', badgeFg: '#ffffff', stars: false, starsText: '',
     sampleHead: false, sampleSub: false,
@@ -922,7 +928,7 @@ function defaultSlide() {
   };
 }
 /* keys that make up a slide's "style" (everything except its content) */
-const STYLE_KEYS = ['bgType','bg1','bg2','bgAngle','shapes','shapeColor','shapeAlpha','grain','vignette','frameColor','shadowStr','glow','glowColor','glare',
+const STYLE_KEYS = ['model', 'bgType','bg1','bg2','bgAngle','shapes','shapeColor','shapeAlpha','grain','vignette','frameColor','shadowStr','glow','glowColor','glare',
                     'badgeBg','badgeFg','textPos','textAlign','textOffsetX','textOffsetY','textWidth','lineH','tGap','tShadow','head','subx'];
 function defaultProject() {
   return {
@@ -1059,6 +1065,7 @@ function sanitizeProject() {
     if (!Array.isArray(out.phones) || !out.phones.length) out.phones = d.phones;
     out.phones = out.phones.slice(0, MAX_PHONES).map(p => ({ media: mediaById(p.media) ? p.media : null, scale: +p.scale || 0.88, tilt: +p.tilt || 0, x: +p.x || 0, y: +p.y || 0 }));
     if (!FRAMES[out.frameColor]) out.frameColor = 'titanium';
+    if (!IPHONES[out.model]) out.model = '17pro';
     if (!FONTS[out.head.font]) out.head.font = 0; if (!FONTS[out.subx.font]) out.subx.font = 0;
     return out;
   });
@@ -1137,6 +1144,7 @@ const CONTROLS = [
   { id:'offsetX', path:'phone.x', kind:'range', div:100, fmt:v => Math.round(v * 100), def:0 },
   { id:'offsetY', path:'phone.y', kind:'range', div:100, fmt:v => Math.round(v * 100), def:0 },
   { id:'fillMode', path:'fillMode', kind:'check', after:() => { activePhone = 0; refreshPhoneTabs(); refreshThumbs(); syncVideoUI(); ensureLoop(); } },
+  { id:'model', path:'model', kind:'select' },
   { id:'frameColor', path:'frameColor', kind:'select' },
   { id:'glare', path:'glare', kind:'check' },
   { id:'shadowStr', path:'shadowStr', kind:'range', div:100, fmt:pct, def:1 },
@@ -1549,6 +1557,180 @@ function drawShapes(c, W, H, S) {
   c.restore();
 }
 
+/* =====================================================================
+   Exact iPhone 17 Pro / 17 Pro Max geometry
+   Source: Apple's official "Dimensional Drawings" for accessory makers,
+   developer.apple.com/accessories/dimensional-drawings (iPhone 17 Pro and
+   iPhone 17 Pro Max, dated 2025-09-09). Millimetres, measured from the
+   top-left corner of the front face (portrait).
+   ===================================================================== */
+/* Corner profile, "Detail A — all four corners": from where the top edge starts
+   to curve (19.43 mm in) round to where the side edge becomes straight. */
+const IPHONE_CORNER = [[19.43, 0], [13.90, 0.04], [8.46, 0.92], [3.80, 3.80], [0.92, 8.46], [0.04, 13.90], [0, 19.43]];
+const IPHONES = {
+  '17pro': {
+    name: 'iPhone 17 Pro', bodyW: 71.85, bodyH: 150.01, thickness: 8.75,
+    glassInset: 1.20,            // 69.45 × 147.61 cover glass
+    displayInset: 2.64,          // 66.57 × 144.73 display active area, "2.64 all around"
+    displayPx: [1206, 2622], displayPt: [402, 874],
+    island: { w: 20.76, h: 6.07, cy: 7.99 },   // Dynamic Island: size and centre line from the top edge
+    /* [edge (-1 left, +1 right), centre from top, length, protrusion beyond the frame] */
+    buttons: [[-1, 34.28, 6.90, 0.45],    // Action button
+              [-1, 48.43, 11.20, 0.45],   // volume up
+              [-1, 62.63, 11.20, 0.45],   // volume down
+              [1, 55.53, 17.70, 0.45],    // side button
+              [1, 98.40, 17.10, 0.00]],   // Camera Control (flush, not visible from the front)
+  },
+  '17promax': {
+    name: 'iPhone 17 Pro Max', bodyW: 77.98, bodyH: 163.43, thickness: 8.75,
+    glassInset: 1.20,            // 75.58 × 161.03 cover glass
+    displayInset: 2.56,          // 72.86 × 158.31 display active area, "2.56 all around"
+    displayPx: [1320, 2868], displayPt: [440, 956],
+    island: { w: 20.76, h: 6.07, cy: 7.91 },
+    buttons: [[-1, 34.28, 6.90, 0.45], [-1, 48.43, 11.20, 0.45], [-1, 62.63, 11.20, 0.45],
+              [1, 55.53, 17.70, 0.45], [1, 111.92, 17.10, 0.00]],
+  },
+};
+/* radius of the circle through the profile's 45° point (3.80, 3.80) — used only for hit-testing and outlines */
+const IPHONE_BODY_R = 3.80 / (1 - Math.SQRT1_2);
+
+const _cornerCache = new Map();
+/* The corner profile as a dense polyline, offset `inset` mm into the body.
+   Centripetal Catmull-Rom through Apple's points; the phantom end points sit on the
+   straight edges so the curve leaves both edges tangentially. */
+function iphoneCorner(inset) {
+  const key = inset.toFixed(3);
+  if (_cornerCache.has(key)) return _cornerCache.get(key);
+  const P = [[26, 0], ...IPHONE_CORNER, [0, 26]];
+  const pts = [];
+  for (let i = 1; i < P.length - 2; i++) {
+    const [p0, p1, p2, p3] = [P[i - 1], P[i], P[i + 1], P[i + 2]];
+    const d = (a, b) => Math.pow(Math.hypot(b[0] - a[0], b[1] - a[1]), 0.5) || 1e-6;
+    const t1 = d(p0, p1), t2 = t1 + d(p1, p2), t3 = t2 + d(p2, p3);
+    const steps = 24;
+    for (let s = 0; s < steps; s++) {
+      const t = t1 + (t2 - t1) * s / steps;
+      const lerp = (a, b, ta, tb) => [((tb - t) * a[0] + (t - ta) * b[0]) / (tb - ta), ((tb - t) * a[1] + (t - ta) * b[1]) / (tb - ta)];
+      const A1 = lerp(p0, p1, 0, t1), A2 = lerp(p1, p2, t1, t2), A3 = lerp(p2, p3, t2, t3);
+      const B1 = lerp(A1, A2, 0, t2), B2 = lerp(A2, A3, t1, t3);
+      pts.push(lerp(B1, B2, t1, t2));
+    }
+  }
+  pts.push(P[P.length - 2]);
+  /* offset along the inward normal (rotate the travel direction by -90°) */
+  const out = pts.map((p, j) => {
+    const a = pts[Math.max(0, j - 1)], b = pts[Math.min(pts.length - 1, j + 1)];
+    let tx = b[0] - a[0], ty = b[1] - a[1];
+    if (j === 0) { tx = -1; ty = 0; } else if (j === pts.length - 1) { tx = 0; ty = 1; }
+    const len = Math.hypot(tx, ty) || 1;
+    return [p[0] + inset * ty / len, p[1] - inset * tx / len];
+  });
+  _cornerCache.set(key, out);
+  return out;
+}
+/* Path of the body outline inset `inset` mm (0 = housing, glassInset = glass, displayInset = active area). */
+function iphoneOutline(c, X, Y, k, Wmm, Hmm, inset) {
+  const P = iphoneCorner(inset), n = P.length;
+  c.beginPath();
+  let first = true;
+  const add = (x, y) => { if (first) { c.moveTo(X + x * k, Y + y * k); first = false; } else c.lineTo(X + x * k, Y + y * k); };
+  for (let i = n - 1; i >= 0; i--) add(P[i][0], P[i][1]);                 // top-left: left edge → top edge
+  for (let i = 0; i < n; i++) add(Wmm - P[i][0], P[i][1]);                // top-right: top edge → right edge
+  for (let i = n - 1; i >= 0; i--) add(Wmm - P[i][0], Hmm - P[i][1]);     // bottom-right: right edge → bottom edge
+  for (let i = 0; i < n; i++) add(P[i][0], Hmm - P[i][1]);                // bottom-left: bottom edge → left edge
+  c.closePath();
+}
+function iphoneGeometry(model) { return IPHONES[model] || IPHONES['17pro']; }
+
+/* shared: wide ambient shadow + tight contact shadow under a device body */
+function drawBodyShadow(c, S, bodyPath, phoneW, opts) {
+  if (!(S.shadowStr > 0) || opts.thumb) return;
+  const sst = S.shadowStr; c.save();
+  c.fillStyle = '#101013';
+  c.shadowColor = `rgba(0,0,0,${Math.min(0.8, 0.35 * sst)})`; c.shadowBlur = phoneW * 0.22 * Math.min(sst, 1.4); c.shadowOffsetY = phoneW * 0.09;
+  bodyPath(); c.fill();
+  c.shadowColor = `rgba(0,0,0,${Math.min(0.8, 0.30 * sst)})`; c.shadowBlur = phoneW * 0.05; c.shadowOffsetY = phoneW * 0.015;
+  bodyPath(); c.fill();
+  c.restore();
+}
+/* shared: media (or placeholder) clipped to the display shape, plus optional glare */
+function drawScreenContent(c, S, ph, sx, sy, sw, sh, clipPath, pi, label, opts) {
+  c.save(); clipPath(); c.clip();
+  const it = mediaById(ph.media);
+  if (it) drawCover(c, it, sx, sy, sw, sh);
+  else {
+    const pg = c.createLinearGradient(sx, sy, sx, sy + sh); pg.addColorStop(0, '#1e293b'); pg.addColorStop(1, '#0f172a');
+    c.fillStyle = pg; c.fillRect(sx, sy, sw, sh);
+    if (!opts.thumb) {
+      c.fillStyle = 'rgba(255,255,255,0.55)'; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.font = `600 ${Math.min(sw, sh) * 0.06}px ${FONTS[0][1]}`;
+      c.fillText(`${label} ${pi + 1}: drop a screenshot`, sx + sw / 2, sy + sh / 2);
+    }
+  }
+  if (S.glare) {
+    const gl = c.createLinearGradient(sx, sy, sx + sw, sy + sh * 0.6);
+    gl.addColorStop(0, 'rgba(255,255,255,0.15)'); gl.addColorStop(0.45, 'rgba(255,255,255,0.05)'); gl.addColorStop(0.55, 'rgba(255,255,255,0)');
+    c.fillStyle = gl; c.fillRect(sx, sy, sw, sh);
+  }
+  c.restore();
+}
+
+/* Draws an iPhone 17 Pro / Pro Max at k canvas px per mm, top-left at (X, Y).
+   Landscape turns the phone 90° counter-clockwise: the top (Dynamic Island) faces left
+   and the left edge (Action button, volume) faces down. */
+function drawIphone(c, S, G, F, X, Y, k, land, pi, opts) {
+  const Wmm = land ? G.bodyH : G.bodyW, Hmm = land ? G.bodyW : G.bodyH;
+  const phoneW = Wmm * k, phoneH = Hmm * k, tuck = 0.6 * k;   // buttons tuck 0.6 mm under the body edge
+
+  /* buttons first, so the body overlaps their roots */
+  for (const [edge, ctr, len, out] of G.buttons) {
+    if (out <= 0) continue;                                   // flush controls are invisible from the front
+    const prot = out * k, along = len * k, from = (ctr - len / 2) * k;
+    let bx, by, bw, bh, g;
+    if (!land) {
+      bw = prot + tuck; bh = along; by = Y + from;
+      bx = edge < 0 ? X - prot : X + phoneW - tuck;
+      g = c.createLinearGradient(bx, 0, bx + bw, 0);
+    } else {
+      bw = along; bh = prot + tuck; bx = X + from;
+      by = edge < 0 ? Y + phoneH - tuck : Y - prot;
+      g = c.createLinearGradient(0, by, 0, by + bh);
+    }
+    const outward = edge < 0 ? !land : land;                  // which end of the gradient faces away from the body
+    g.addColorStop(outward ? 0 : 1, F.b); g.addColorStop(outward ? 1 : 0, F.c);
+    c.fillStyle = g; rr(c, bx, by, bw, bh, Math.min(bw, bh) / 2); c.fill();
+  }
+
+  const body = () => iphoneOutline(c, X, Y, k, Wmm, Hmm, 0);
+  drawBodyShadow(c, S, body, phoneW, opts);
+
+  /* housing: brushed-metal gradient catching light at the corners */
+  const railG = c.createLinearGradient(X, Y, X + phoneW, Y + phoneH);
+  railG.addColorStop(0, F.a); railG.addColorStop(0.10, F.b); railG.addColorStop(0.35, F.c); railG.addColorStop(0.65, F.c); railG.addColorStop(0.90, F.b); railG.addColorStop(1, F.a);
+  c.fillStyle = railG; body(); c.fill();
+  c.save(); body(); c.clip();                                  // keep the edge line inside Apple's outline
+  c.lineWidth = Math.max(1, 0.24 * k); c.strokeStyle = 'rgba(0,0,0,0.55)'; body(); c.stroke();
+  c.restore();
+  c.lineWidth = Math.max(1, 0.16 * k); c.strokeStyle = 'rgba(255,255,255,0.30)'; iphoneOutline(c, X, Y, k, Wmm, Hmm, 0.25); c.stroke();
+
+  /* cover glass with its black border (glass edge → display active area) */
+  c.fillStyle = '#020203'; iphoneOutline(c, X, Y, k, Wmm, Hmm, G.glassInset); c.fill();
+  c.lineWidth = Math.max(1, 0.1 * k); c.strokeStyle = 'rgba(255,255,255,0.07)'; iphoneOutline(c, X, Y, k, Wmm, Hmm, G.glassInset + 0.12); c.stroke();
+
+  /* display active area: exact size, position and corner shape */
+  const d = G.displayInset;
+  const sx = X + d * k, sy = Y + d * k, sw = (Wmm - 2 * d) * k, sh = (Hmm - 2 * d) * k;
+  const screen = () => iphoneOutline(c, X, Y, k, Wmm, Hmm, d);
+  drawScreenContent(c, S, S.phones[pi], sx, sy, sw, sh, screen, pi, 'Phone', opts);
+
+  /* Dynamic Island: a fully rounded pill, horizontally centred */
+  const I = G.island, iw = I.w * k, ih = I.h * k, along0 = (I.cy - I.h / 2) * k;
+  c.fillStyle = '#000';
+  if (!land) rr(c, X + (Wmm - I.w) / 2 * k, Y + along0, iw, ih, ih / 2);
+  else rr(c, X + along0, Y + (Hmm - I.w) / 2 * k, ih, iw, ih / 2);
+  c.fill();
+}
+
 /* The composition. opts: {preview, thumb, layout} — layout collects hit-test rects for the editor. */
 function drawScene(c, W, H, S, dev, opts = {}) {
   c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
@@ -1603,6 +1785,7 @@ function drawScene(c, W, H, S, dev, opts = {}) {
   const areaH = areaBottom - areaTop;
   const bezelRatio = isPad ? 0.032 : 0.022;
   const F = FRAMES[S.frameColor] || FRAMES.titanium;
+  const IP = isPad ? null : iphoneGeometry(S.model);
 
   /* full-bleed mode: the media fills the whole canvas, no device frame (what app previews must look like) */
   if (S.fillMode) {
@@ -1619,12 +1802,20 @@ function drawScene(c, W, H, S, dev, opts = {}) {
   for (let pi = 0; !S.fillMode && pi < S.phones.length; pi++) {
     const ph = S.phones[pi];
     const phoneH = areaH * ph.scale;
-    let phoneW = phoneH * screenAspect;
-    for (let i = 0; i < 6; i++) { const b = phoneW * bezelRatio; const screenH = phoneH - 2 * b, screenW = screenH * screenAspect; phoneW = screenW + 2 * b; }
-    const bez = phoneW * bezelRatio;
+    let phoneW, bez = 0, outerR, k = 0;
+    if (IP) {
+      /* iPhone: body proportions straight from the millimetre spec; k = canvas px per mm */
+      phoneW = phoneH * (devLand ? IP.bodyH / IP.bodyW : IP.bodyW / IP.bodyH);
+      k = phoneW / (devLand ? IP.bodyH : IP.bodyW);
+      outerR = IPHONE_BODY_R * k;
+    } else {
+      phoneW = phoneH * screenAspect;
+      for (let i = 0; i < 6; i++) { const b = phoneW * bezelRatio; const screenH = phoneH - 2 * b, screenW = screenH * screenAspect; phoneW = screenW + 2 * b; }
+      bez = phoneW * bezelRatio;
+      outerR = phoneW * 0.065;
+    }
     const phoneX = W / 2 - phoneW / 2 + ph.x * W;
     const phoneY = areaTop + (areaH - phoneH) / 2 + ph.y * H;
-    const outerR = isPad ? phoneW * 0.065 : Math.min(phoneW, phoneH) * 0.175;
     if (layout) layout.phones.push({ i: pi, cx: phoneX + phoneW / 2, cy: phoneY + phoneH / 2, w: phoneW, h: phoneH, tilt: ph.tilt, r: outerR });
 
     if (S.glow > 0) {
@@ -1636,24 +1827,11 @@ function drawScene(c, W, H, S, dev, opts = {}) {
 
     c.save();
     if (ph.tilt) { const pcx = phoneX + phoneW / 2, pcy = phoneY + phoneH / 2; c.translate(pcx, pcy); c.rotate(ph.tilt * Math.PI / 180); c.translate(-pcx, -pcy); }
-    const rail = phoneW * (isPad ? 0.010 : 0.009);
-
-    /* side buttons (behind the body), with a metallic falloff */
-    if (!isPad && !devLand) {
-      const bw = phoneW * 0.016;
-      const btn = (bx, by, bh, flip) => { const gg = c.createLinearGradient(bx, 0, bx + bw, 0); gg.addColorStop(flip ? 1 : 0, F.b); gg.addColorStop(flip ? 0 : 1, F.c); c.fillStyle = gg; rr(c, bx, by, bw, bh, bw / 2); c.fill(); };
-      btn(phoneX - bw + 2, phoneY + phoneH * 0.21, phoneH * 0.035, false);
-      btn(phoneX - bw + 2, phoneY + phoneH * 0.275, phoneH * 0.06, false);
-      btn(phoneX - bw + 2, phoneY + phoneH * 0.35, phoneH * 0.06, false);
-      btn(phoneX + phoneW - 2, phoneY + phoneH * 0.29, phoneH * 0.085, true);
-    } else if (!isPad && devLand) {
-      const bh = phoneH * 0.016;
-      const btn = (bx, by, bwid, flip) => { const gg = c.createLinearGradient(0, by, 0, by + bh); gg.addColorStop(flip ? 1 : 0, F.b); gg.addColorStop(flip ? 0 : 1, F.c); c.fillStyle = gg; rr(c, bx, by, bwid, bh, bh / 2); c.fill(); };
-      btn(phoneX + phoneW * 0.21, phoneY + phoneH - 2, phoneW * 0.035, false);
-      btn(phoneX + phoneW * 0.275, phoneY + phoneH - 2, phoneW * 0.06, false);
-      btn(phoneX + phoneW * 0.35, phoneY + phoneH - 2, phoneW * 0.06, false);
-      btn(phoneX + phoneW * 0.29, phoneY - bh + 2, phoneW * 0.085, true);
+    if (IP) {
+      drawIphone(c, S, IP, F, phoneX, phoneY, k, devLand, pi, opts);
     } else {
+      const rail = phoneW * 0.010;
+      /* iPad: top button and volume rocker (behind the body) */
       const bw = phoneW * 0.010;
       const tg = c.createLinearGradient(0, phoneY - bw, 0, phoneY); tg.addColorStop(0, F.b); tg.addColorStop(1, F.c);
       c.fillStyle = tg; rr(c, phoneX + phoneW * 0.86, phoneY - bw + 2, phoneW * 0.05, bw, bw / 2); c.fill();
@@ -1661,65 +1839,15 @@ function drawScene(c, W, H, S, dev, opts = {}) {
       c.fillStyle = vg;
       rr(c, phoneX + phoneW - 2, phoneY + phoneH * 0.040, bw, phoneH * 0.030, bw / 2); c.fill();
       rr(c, phoneX + phoneW - 2, phoneY + phoneH * 0.078, bw, phoneH * 0.030, bw / 2); c.fill();
-    }
-
-    /* body: wide ambient shadow + tight contact shadow */
-    if (S.shadowStr > 0 && !opts.thumb) {
-      const sst = S.shadowStr; c.save();
-      c.shadowColor = `rgba(0,0,0,${Math.min(0.8, 0.35 * sst)})`; c.shadowBlur = phoneW * 0.22 * Math.min(sst, 1.4); c.shadowOffsetY = phoneW * 0.09;
-      c.fillStyle = '#101013'; rr(c, phoneX, phoneY, phoneW, phoneH, outerR); c.fill();
-      c.shadowColor = `rgba(0,0,0,${Math.min(0.8, 0.30 * sst)})`; c.shadowBlur = phoneW * 0.05; c.shadowOffsetY = phoneW * 0.015;
-      rr(c, phoneX, phoneY, phoneW, phoneH, outerR); c.fill();
-      c.restore();
-    }
-    /* metal rail */
-    const railG = c.createLinearGradient(phoneX, phoneY, phoneX + phoneW, phoneY + phoneH);
-    railG.addColorStop(0, F.a); railG.addColorStop(0.10, F.b); railG.addColorStop(0.35, F.c); railG.addColorStop(0.65, F.c); railG.addColorStop(0.90, F.b); railG.addColorStop(1, F.a);
-    c.fillStyle = railG; rr(c, phoneX, phoneY, phoneW, phoneH, outerR); c.fill();
-    c.lineWidth = Math.max(1, phoneW * 0.0020); c.strokeStyle = 'rgba(0,0,0,0.5)'; rr(c, phoneX, phoneY, phoneW, phoneH, outerR); c.stroke();
-    const rim = Math.max(1, phoneW * 0.0028);
-    c.lineWidth = rim; c.strokeStyle = 'rgba(255,255,255,0.30)'; rr(c, phoneX + rim, phoneY + rim, phoneW - 2 * rim, phoneH - 2 * rim, outerR - rim); c.stroke();
-    /* antenna breaks */
-    if (!isPad) {
-      c.fillStyle = 'rgba(12,12,14,0.5)'; const abT = Math.max(2, phoneW * 0.004);
-      for (const fy of [0.10, 0.90]) { c.fillRect(phoneX, phoneY + phoneH * fy, rail * 1.15, abT); c.fillRect(phoneX + phoneW - rail * 1.15, phoneY + phoneH * fy, rail * 1.15, abT); }
-      for (const fx of [0.25, 0.75]) { c.fillRect(phoneX + phoneW * fx, phoneY, abT, rail * 1.15); c.fillRect(phoneX + phoneW * fx, phoneY + phoneH - rail * 1.15, abT, rail * 1.15); }
-    }
-    /* glossy bezel */
-    c.fillStyle = '#020203'; rr(c, phoneX + rail, phoneY + rail, phoneW - 2 * rail, phoneH - 2 * rail, outerR - rail); c.fill();
-    const bs = rail * 1.9;
-    c.lineWidth = Math.max(1, phoneW * 0.0016); c.strokeStyle = 'rgba(255,255,255,0.06)'; rr(c, phoneX + bs, phoneY + bs, phoneW - 2 * bs, phoneH - 2 * bs, outerR - bs); c.stroke();
-
-    /* screen */
-    const sx = phoneX + bez, sy = phoneY + bez, sw = phoneW - 2 * bez, sh = phoneH - 2 * bez, sr = Math.max(outerR - bez * 0.9, phoneW * 0.02);
-    c.save(); rr(c, sx, sy, sw, sh, sr); c.clip();
-    const it = mediaById(ph.media);
-    if (it) drawCover(c, it, sx, sy, sw, sh);
-    else {
-      const pg = c.createLinearGradient(sx, sy, sx, sy + sh); pg.addColorStop(0, '#1e293b'); pg.addColorStop(1, '#0f172a');
-      c.fillStyle = pg; c.fillRect(sx, sy, sw, sh);
-      if (!opts.thumb) {
-        c.fillStyle = 'rgba(255,255,255,0.55)'; c.textAlign = 'center'; c.textBaseline = 'middle';
-        c.font = `600 ${sw * 0.06}px ${FONTS[0][1]}`;
-        c.fillText(`${isPad ? 'iPad' : 'Phone'} ${pi + 1}: drop a screenshot`, sx + sw / 2, sy + sh / 2);
-      }
-    }
-    if (S.glare) {
-      const gl = c.createLinearGradient(sx, sy, sx + sw, sy + sh * 0.6);
-      gl.addColorStop(0, 'rgba(255,255,255,0.15)'); gl.addColorStop(0.45, 'rgba(255,255,255,0.05)'); gl.addColorStop(0.55, 'rgba(255,255,255,0)');
-      c.fillStyle = gl; c.fillRect(sx, sy, sw, sh);
-    }
-    c.restore();
-    c.lineWidth = Math.max(1, phoneW * 0.0016); c.strokeStyle = 'rgba(255,255,255,0.10)'; rr(c, sx, sy, sw, sh, sr); c.stroke();
-
-    /* dynamic island + camera (portrait: top edge; landscape: vertical pill at the left) */
-    if (!isPad) {
-      let ix, iy, iw, ih, camX, camY, camR;
-      if (devLand) { ih = sw * 0.032; iw = sh * 0.26; ix = sx + sw * 0.012; iy = sy + sh / 2 - iw / 2; c.fillStyle = '#000'; rr(c, ix, iy, ih, iw, ih / 2); c.fill(); camX = ix + ih / 2; camY = iy + iw - ih * 0.62; camR = ih * 0.30; }
-      else { iw = sw * 0.26; ih = sh * 0.032; ix = sx + sw / 2 - iw / 2; iy = sy + sh * 0.012; c.fillStyle = '#000'; rr(c, ix, iy, iw, ih, ih / 2); c.fill(); camX = ix + iw - ih * 0.62; camY = iy + ih / 2; camR = ih * 0.30; }
-      c.fillStyle = '#16161c'; c.beginPath(); c.arc(camX, camY, camR, 0, 7); c.fill();
-      c.fillStyle = '#23233a'; c.beginPath(); c.arc(camX, camY, camR * 0.43, 0, 7); c.fill();
-    } else {
+      const body = () => rr(c, phoneX, phoneY, phoneW, phoneH, outerR);
+      drawBodyShadow(c, S, body, phoneW, opts);
+      const railG = c.createLinearGradient(phoneX, phoneY, phoneX + phoneW, phoneY + phoneH);
+      railG.addColorStop(0, F.a); railG.addColorStop(0.10, F.b); railG.addColorStop(0.35, F.c); railG.addColorStop(0.65, F.c); railG.addColorStop(0.90, F.b); railG.addColorStop(1, F.a);
+      c.fillStyle = railG; body(); c.fill();
+      c.lineWidth = Math.max(1, phoneW * 0.0020); c.strokeStyle = 'rgba(0,0,0,0.5)'; body(); c.stroke();
+      c.fillStyle = '#020203'; rr(c, phoneX + rail, phoneY + rail, phoneW - 2 * rail, phoneH - 2 * rail, outerR - rail); c.fill();
+      const sx = phoneX + bez, sy = phoneY + bez, sw = phoneW - 2 * bez, sh = phoneH - 2 * bez, sr = Math.max(outerR - bez * 0.9, phoneW * 0.02);
+      drawScreenContent(c, S, ph, sx, sy, sw, sh, () => rr(c, sx, sy, sw, sh, sr), pi, 'iPad', opts);
       const camX = devLand ? phoneX + (rail + bez) / 2 : sx + sw / 2, camY = devLand ? sy + sh / 2 : phoneY + (rail + bez) / 2, camR = Math.max(3, (bez - rail) * 0.28);
       c.fillStyle = '#101014'; c.beginPath(); c.arc(camX, camY, camR, 0, 7); c.fill();
       c.fillStyle = '#26263a'; c.beginPath(); c.arc(camX, camY, camR * 0.45, 0, 7); c.fill();

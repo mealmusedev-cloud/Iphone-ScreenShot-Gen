@@ -56,6 +56,29 @@ standalone app (web manifest included).
 - Browsers without WebCodecs H.264 fall back to a screen recording and the app
   hands you the ffmpeg command that fixes it up.
 
+## Exact iPhone 17 Pro and 17 Pro Max frames
+
+The device frames are drawn from Apple's official
+[Dimensional Drawings](https://developer.apple.com/accessories/dimensional-drawings/)
+for accessory makers (iPhone 17 Pro and iPhone 17 Pro Max, dated 2025-09-09).
+Pick the model under **Device style → iPhone model**.
+
+| | iPhone 17 Pro | iPhone 17 Pro Max |
+|---|---|---|
+| Body | 71.85 × 150.01 × 8.75 mm | 77.98 × 163.43 × 8.75 mm |
+| Cover glass | 69.45 × 147.61 mm | 75.58 × 161.03 mm |
+| Display active area | 66.57 × 144.73 mm, 2.64 mm in from the edge | 72.86 × 158.31 mm, 2.56 mm in |
+| Display | 1206 × 2622 px, 402 × 874 pt @3x, 460 ppi | 1320 × 2868 px, 440 × 956 pt @3x, 460 ppi |
+| Dynamic Island | 20.76 × 6.07 mm = 376 × 110 px = 125.33 × 36.67 pt | same |
+| Island position | centred, 14 pt (42 px) below the display top | same |
+| Corner profile | Apple's spline (Detail A), same for both | same |
+| Buttons (centre from top) | Action 34.28, vol + 48.43, vol − 62.63, side 55.53, Camera Control 98.40 mm | same, Camera Control 111.92 mm |
+
+The island size also matches Apple's Human Interface Guidelines (a 230 pt compact
+island minus two 52.33 pt regions = 125.33 pt, 36.67 pt tall), and the display
+corner matches iOS's 62 pt display corner radius. `tests/geometry.mjs` renders each
+model at native resolution and checks these numbers to the pixel.
+
 ## Editing
 
 - **Slides**: up to 10 per set (App Store Connect's limit). Each slide keeps its
@@ -65,8 +88,9 @@ standalone app (web manifest included).
 - **Direct manipulation**: drag devices and the text block on the canvas,
   scroll over a device to resize it, ⌥+scroll to tilt, double-click to replace
   its media. Arrow keys nudge the selected device.
-- **Devices**: up to 3 per slide, titanium/black/silver/gold/blue rails,
-  Dynamic Island, side buttons, glossy bezel, layered shadows, glare, glow.
+- **Devices**: up to 3 per slide. Exact iPhone 17 Pro / Pro Max frames (see
+  below) in silver, Cosmic Orange, Deep Blue, titanium, black or gold, with
+  layered shadows, glare and glow.
 - **Backgrounds**: linear, radial, aurora and mesh gradients, solid colour,
   backdrop shapes (circles, rings, dots, grid, waves), film grain, vignette.
 - **Text**: separate font, weight, size, colour, italic, caps and letter spacing
