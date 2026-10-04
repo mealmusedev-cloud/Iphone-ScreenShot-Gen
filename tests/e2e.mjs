@@ -1,9 +1,10 @@
-/* End-to-end tests. Needs playwright (npm i -D playwright && npx playwright install chromium),
-   python3 and ffmpeg/ffprobe on PATH:  node tests/e2e.mjs
+/* End-to-end tests (developer only — the app itself needs nothing). Needs playwright (npm i -D playwright && npx playwright install chromium),
+   and ffmpeg/ffprobe on PATH:  node tests/e2e.mjs
+   The page is opened straight from disk (file://) — no web server — exactly as a user double-clicking it would.
    This Chromium may lack H.264/AAC; the preview test substitutes VP9 and checks the container. */
 import { chromium } from 'playwright';
-import { fileURLToPath } from 'node:url';
-import { spawn, execSync } from 'node:child_process';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -14,8 +15,6 @@ execSync(`ffmpeg -hide_banner -loglevel error -y -f lavfi -i "testsrc2=size=1290
 execSync(`ffmpeg -hide_banner -loglevel error -y -f lavfi -i "testsrc2=size=1290x2796:rate=1:duration=1" -frames:v 1 "${ASSETS}/shot1.png"`);
 execSync(`ffmpeg -hide_banner -loglevel error -y -f lavfi -i "color=c=0x3355ff:size=1290x2796:rate=1:duration=1" -frames:v 1 "${ASSETS}/shot2.png"`);
 const OUT = path.join(HERE, '.out', 'e2e'); fs.rmSync(OUT, { recursive: true, force: true }); fs.mkdirSync(OUT, { recursive: true });
-const server = spawn('python3', ['-m', 'http.server', '8911'], { cwd: ROOT, stdio: 'ignore' });
-await new Promise(r => setTimeout(r, 800));
 
 let failures = 0;
 const check = (ok, msg) => { console.log((ok ? 'PASS ' : 'FAIL ') + msg); if (!ok) failures++; };
@@ -26,7 +25,7 @@ const errors = [];
 page.on('pageerror', e => errors.push('pageerror: ' + e.message));
 page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
 
-const URL_ = 'http://localhost:8911/index.html';
+const URL_ = pathToFileURL(path.join(ROOT, 'index.html')).href;
 await page.goto(URL_);
 await page.waitForTimeout(600);
 
@@ -174,6 +173,6 @@ await page.waitForTimeout(300);
 await page.screenshot({ path: path.join(OUT, 'ui.png') });
 
 check(errors.length === 0, 'no console/page errors' + (errors.length ? ':\n   ' + errors.join('\n   ') : ''));
-await browser.close(); server.kill();
+await browser.close();
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nALL E2E PASS');
 process.exit(failures ? 1 : 0);

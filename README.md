@@ -17,12 +17,9 @@ The app *is* the website: `index.html` at the repository root. Every push to
 One-time setup in the repository: **Settings → Pages → Build and deployment →
 Source: GitHub Actions**.
 
-To run it locally, open `index.html` in a browser or serve the folder:
-
-```bash
-python3 -m http.server 8899
-# then open http://localhost:8899/
-```
+To use it offline, download `index.html` and double-click it. It runs straight
+from your disk with nothing to install: no Python, no Node, no server. Every
+feature works that way, including saved media, PNG/ZIP export and MP4 previews.
 
 Chrome, Edge or Safari on macOS is recommended: those encode app previews
 directly to upload-ready H.264 + AAC MP4 files. The site is installable as a
