@@ -1,5 +1,14 @@
 # App Store Screenshot Studio
 
+## ▶ [Open the app](https://mealmusedev-cloud.github.io/Iphone-ScreenShot-Gen/)
+
+Click the link above. It runs right in your browser with nothing to install:
+no Python, no Node, no server. Clicking `index.html` in this repository only
+shows its code, because GitHub never runs HTML files. Use the link instead.
+
+To use it offline, press **⤓ Download for offline** in the app's top bar and
+double-click the downloaded file.
+
 A single self-contained HTML page for producing App Store Connect screenshots
 and app preview videos. Drop in screen recordings or screenshots, frame them in a
 realistic iPhone or iPad, caption and style them, and export a complete,

@@ -143,6 +143,10 @@
   #projectName{width:220px; font-weight:600; background:transparent; border-color:transparent}
   #projectName:hover{border-color:var(--border2)} #projectName:focus{background:var(--panel2)}
   #topbar button{white-space:nowrap}
+  .btnlink{display:inline-flex; align-items:center; padding:8px 12px; border-radius:8px; border:1px solid var(--border2); background:var(--panel2);
+           color:var(--text); text-decoration:none; font-weight:500; white-space:nowrap; transition:border-color .15s, background .15s}
+  .btnlink:hover{border-color:var(--accent); background:var(--panel3)}
+  .btnlink[hidden]{display:none}
   .iconbtn{width:34px; padding:0; height:34px; display:grid; place-items:center; font-size:15px}
   #slideStrip{display:flex; gap:10px; align-items:center; padding:10px 14px; overflow-x:auto; border-bottom:1px solid var(--border);
               background:var(--panel); scrollbar-width:thin; min-height:124px}
@@ -436,6 +440,7 @@
     <button class="iconbtn ghost" id="undoBtn" title="Undo (⌘Z)">↶</button>
     <button class="iconbtn ghost" id="redoBtn" title="Redo (⌘⇧Z)">↷</button>
     <div class="spacer"></div>
+    <a id="offlineBtn" class="btnlink" href="index.html" download="screenshot-studio.html" title="Save this app as a single file. Double-click it to use it offline — nothing to install." hidden>⤓ Download for offline</a>
     <button id="checkBtn">✓ Readiness check</button>
     <button id="exportBtn" title="Export this slide at the selected size (⌘E)">Export PNG</button>
     <button class="primary" id="exportSetBtn" title="Export every slide at every size you need, zipped">Export set…</button>
@@ -2333,6 +2338,9 @@ window.addEventListener('keydown', e => {
 /* =====================================================================
    Boot: restore media (IndexedDB) and the project (localStorage)
    ===================================================================== */
+/* offer the single-file download only when served from the web; a file opened from disk is already offline */
+if (location.protocol === 'http:' || location.protocol === 'https:') $('offlineBtn').hidden = false;
+
 (async function init() {
   try {
     const recs = (await DB.all()) || [];
