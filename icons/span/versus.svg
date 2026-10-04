@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96" role="img" aria-label="Versus">
+  <!-- Span · Versus · Porcelain palette · canvas 96 · stroke 7 · tint well r44 @ 14% -->
+  <circle cx="48" cy="48" r="44" fill="#E5655B" fill-opacity="0.14"/>
+  <g fill="#E5655B">
+    <circle cx="29" cy="37.5" r="7"/>
+    <path d="M17 68V60A12 12 0 0 1 41 60V68A2.5 2.5 0 0 1 38.5 70.5H19.5A2.5 2.5 0 0 1 17 68Z"/>
+    <circle cx="67" cy="37.5" r="7"/>
+    <path d="M55 68V60A12 12 0 0 1 79 60V68A2.5 2.5 0 0 1 76.5 70.5H57.5A2.5 2.5 0 0 1 55 68Z"/>
+  </g>
+  <path d="M48 40Q48.6 47.4 56 48Q48.6 48.6 48 56Q47.4 48.6 40 48Q47.4 47.4 48 40Z" fill="#FFC14A"/>
+</svg>

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96" role="img" aria-label="Arcade">
+  <!-- Span · Arcade · Porcelain palette · canvas 96 · stroke 7 · tint well r44 @ 14% -->
+  <circle cx="48" cy="48" r="44" fill="#FFC14A" fill-opacity="0.14"/>
+  <path d="M55 21L31 53H46L41 75L65 43H50Z" fill="#FFC14A" stroke="#FFC14A" stroke-width="4" stroke-linejoin="round"/>
+</svg>
