@@ -1,0 +1,1432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>App Store Screenshot Studio</title>
+<style>
+  :root{
+    --bg:#101014; --panel:#1a1a21; --panel2:#22222b; --border:#2e2e3a;
+    --text:#ececf1; --muted:#9a9aa8; --accent:#5b8cff;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    display:flex; background:var(--bg); color:var(--text);
+    font:14px/1.45 -apple-system,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+    overflow:hidden;
+  }
+  /* ---------- Sidebar ---------- */
+  #sidebar{
+    width:320px; min-width:320px; height:100%; overflow-y:auto;
+    background:var(--panel); border-right:1px solid var(--border); padding:18px 16px 40px;
+  }
+  h1{font-size:16px; margin:0 0 14px; font-weight:700; letter-spacing:.2px}
+  h2{font-size:11px; text-transform:uppercase; letter-spacing:.8px; color:var(--muted);
+     margin:22px 0 8px; font-weight:600}
+  label{display:block; font-size:12px; color:var(--muted); margin:10px 0 4px}
+  .val{float:right; color:var(--text); font-variant-numeric:tabular-nums}
+  .hint{text-transform:none; letter-spacing:0; font-weight:400; opacity:.7}
+  .checks{display:flex; gap:12px; align-items:center; padding-top:20px}
+  .checks label{display:flex; gap:5px; align-items:center; margin:0; cursor:pointer}
+  .checks input{accent-color:var(--accent)}
+  #templateGrid{display:grid; grid-template-columns:1fr 1fr; gap:6px}
+  #templateGrid button{
+    padding:10px 6px; font-size:12px; font-weight:600;
+    border:1px solid rgba(255,255,255,.14); border-radius:8px;
+  }
+  #templateGrid button:hover{outline:2px solid var(--accent); border-color:transparent}
+  #phoneTabs{display:flex; gap:6px; margin-bottom:4px}
+  #phoneTabs button{flex:1; padding:7px 4px}
+  #phoneTabs button.sel{border-color:var(--accent); background:rgba(91,140,255,.18); font-weight:600}
+  #phoneTabs button.mini{flex:0 0 36px}
+  select,input[type=text]{
+    width:100%; padding:8px 10px; border-radius:8px; border:1px solid var(--border);
+    background:var(--panel2); color:var(--text); font:inherit; outline:none;
+  }
+  select:focus,input[type=text]:focus{border-color:var(--accent)}
+  input[type=range]{width:100%; accent-color:var(--accent)}
+  .row{display:flex; gap:8px; align-items:center}
+  .row > *{flex:1}
+  input[type=color]{
+    width:100%; height:34px; padding:2px; border-radius:8px;
+    border:1px solid var(--border); background:var(--panel2); cursor:pointer;
+  }
+  .swatches{display:flex; gap:6px; flex-wrap:wrap; margin-top:8px}
+  .swatch{width:34px; height:26px; border-radius:6px; border:1px solid rgba(255,255,255,.15); cursor:pointer}
+  .swatch:hover{outline:2px solid var(--accent)}
+  button{
+    font:inherit; border:none; border-radius:8px; cursor:pointer;
+    padding:9px 12px; background:var(--panel2); color:var(--text); border:1px solid var(--border);
+  }
+  button:hover{border-color:var(--accent)}
+  button.primary{background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600}
+  button.primary:hover{filter:brightness(1.1)}
+  .btnrow{display:flex; gap:8px; margin-top:10px}
+  .btnrow button{flex:1}
+  #dropHint{font-size:12px; color:var(--muted); margin-top:6px}
+  /* thumbnails */
+  #thumbs{display:flex; flex-wrap:wrap; gap:8px; margin-top:10px}
+  .thumb{
+    position:relative; width:64px; height:110px; border-radius:8px; overflow:hidden;
+    border:2px solid transparent; cursor:pointer; background:#000;
+  }
+  .thumb img{width:100%; height:100%; object-fit:cover; display:block}
+  .thumb.sel{border-color:var(--accent)}
+  .thumb .x{
+    position:absolute; top:2px; right:2px; width:18px; height:18px; line-height:16px;
+    text-align:center; border-radius:50%; background:rgba(0,0,0,.65); color:#fff;
+    font-size:12px; display:none;
+  }
+  .thumb:hover .x{display:block}
+  .thumb .vtag{
+    position:absolute; left:3px; bottom:3px; padding:1px 5px; border-radius:4px;
+    background:rgba(0,0,0,.7); color:#fff; font-size:10px; line-height:14px;
+  }
+  .vhint{font-size:11px; color:var(--muted); margin:8px 0 2px; line-height:1.4}
+  input[type=number]{
+    width:100%; padding:8px 10px; border-radius:8px; border:1px solid var(--border);
+    background:var(--panel2); color:var(--text); font:inherit; outline:none;
+  }
+  input[type=number]:focus{border-color:var(--accent)}
+  button:disabled{opacity:.45; cursor:not-allowed}
+  button:disabled:hover{border-color:var(--border)}
+  /* ---------- Preview ---------- */
+  #main{flex:1; display:flex; flex-direction:column; height:100%}
+  #stage{
+    flex:1; display:flex; align-items:center; justify-content:center; overflow:hidden;
+    padding:24px; position:relative;
+    background:
+      linear-gradient(45deg,#16161c 25%,transparent 25%,transparent 75%,#16161c 75%),
+      linear-gradient(45deg,#16161c 25%,transparent 25%,transparent 75%,#16161c 75%),
+      #1b1b22;
+    background-size:24px 24px; background-position:0 0,12px 12px;
+  }
+  #stage.drag::after{
+    content:"Drop screenshot(s) here"; position:absolute; inset:12px;
+    display:flex; align-items:center; justify-content:center;
+    border:2px dashed var(--accent); border-radius:14px;
+    background:rgba(91,140,255,.12); color:var(--text); font-size:18px; font-weight:600;
+    pointer-events:none;
+  }
+  #canvas{max-width:100%; max-height:100%; box-shadow:0 8px 40px rgba(0,0,0,.5); border-radius:6px}
+  #statusbar{
+    padding:8px 16px; font-size:12px; color:var(--muted);
+    border-top:1px solid var(--border); background:var(--panel);
+    display:flex; justify-content:space-between;
+  }
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <h1>📱 App Store Screenshot Studio</h1>
+
+  <h2>Device / Export size</h2>
+  <select id="preset"></select>
+
+  <h2>Style presets</h2>
+  <div id="templateGrid"></div>
+
+  <h2>Screenshots</h2>
+  <button id="pickBtn" style="width:100%">＋ Add images or video…</button>
+  <input type="file" id="fileInput" accept="image/*,video/*" multiple hidden>
+  <div id="dropHint">…or drag &amp; drop onto the preview, or paste (⌘V). Video: MP4/MOV.</div>
+  <div id="thumbs"></div>
+
+  <h2>Video</h2>
+  <div class="checks" style="padding-top:0">
+    <label><input type="checkbox" id="fillMode"> Fill frame (no device)</label>
+  </div>
+  <div id="videoHint" class="vhint">Add a video, or pick a 🎬 App preview size.</div>
+  <div class="btnrow">
+    <button id="playBtn" disabled>❚❚ Pause</button>
+    <button id="restartBtn" disabled>↺ Restart</button>
+  </div>
+  <label>Max length (seconds) <span class="hint">App Store allows 15–30</span></label>
+  <input type="number" id="recLen" min="1" max="30" value="30">
+  <div class="checks" style="padding-top:10px">
+    <label><input type="checkbox" id="recAudio" checked> Include the video's audio</label>
+  </div>
+  <div class="btnrow">
+    <button id="recordBtn" disabled style="width:100%">● Record video</button>
+  </div>
+  <div class="vhint">
+    Browser recordings carry broken duration metadata, so <b>always run this once</b>
+    before uploading — it fixes duration and locks in App Store specs (H.264, 30fps, exact size):
+  </div>
+  <div class="btnrow">
+    <button id="ffmpegBtn" style="width:100%">⧉ Copy ffmpeg fix-up command</button>
+  </div>
+
+  <h2>Layout <span class="hint">double-click a slider to reset</span></h2>
+  <div id="phoneTabs"></div>
+  <div class="hint" style="font-size:11px; color:var(--muted)">Sliders below control the selected phone. Click a thumbnail to put that image on it.</div>
+  <label>Phone size <span class="val" id="scaleVal">88%</span></label>
+  <input type="range" id="scale" min="30" max="200" value="88">
+  <label>Tilt <span class="val" id="tiltVal">0°</span></label>
+  <input type="range" id="tilt" min="-180" max="180" value="0">
+  <label>Horizontal position</label>
+  <input type="range" id="offsetX" min="-40" max="40" value="0">
+  <label>Vertical position</label>
+  <input type="range" id="offsetY" min="-40" max="40" value="0">
+
+  <h2>Phone style</h2>
+  <div class="row">
+    <div>
+      <label>Frame color</label>
+      <select id="frameColor">
+        <option value="titanium" selected>Titanium</option>
+        <option value="black">Black</option>
+        <option value="silver">Silver</option>
+        <option value="gold">Gold</option>
+      </select>
+    </div>
+    <div class="checks" style="padding-top:26px">
+      <label><input type="checkbox" id="glare"> Screen glare</label>
+    </div>
+  </div>
+  <label>Shadow <span class="val" id="shadowVal">100%</span></label>
+  <input type="range" id="shadowStr" min="0" max="200" value="100">
+  <label>Glow behind phone <span class="val" id="glowVal">0%</span></label>
+  <div class="row">
+    <div style="flex:2"><input type="range" id="glow" min="0" max="100" value="0" style="margin-top:8px"></div>
+    <div><input type="color" id="glowColor" value="#ffffff"></div>
+  </div>
+
+  <h2>Background</h2>
+  <label>Style</label>
+  <select id="bgType">
+    <option value="linear" selected>Linear gradient</option>
+    <option value="radial">Radial gradient</option>
+    <option value="aurora">Aurora blobs</option>
+    <option value="solid">Solid color</option>
+  </select>
+  <div class="row" style="margin-top:8px">
+    <div><label>Color 1</label><input type="color" id="bg1" value="#4f46e5"></div>
+    <div><label>Color 2</label><input type="color" id="bg2" value="#9333ea"></div>
+  </div>
+  <label>Gradient angle</label>
+  <input type="range" id="bgAngle" min="0" max="360" value="135">
+  <div class="swatches" id="swatches"></div>
+  <div class="row" style="margin-top:10px">
+    <div>
+      <label>Backdrop shapes</label>
+      <select id="shapes">
+        <option value="none" selected>None</option>
+        <option value="circles">Soft circles</option>
+        <option value="rings">Rings</option>
+        <option value="dots">Dot grid</option>
+      </select>
+    </div>
+    <div><label>Shape color</label><input type="color" id="shapeColor" value="#ffffff"></div>
+  </div>
+  <label>Shape opacity</label>
+  <input type="range" id="shapeAlpha" min="2" max="40" value="12">
+  <label>Film grain</label>
+  <input type="range" id="grain" min="0" max="100" value="0">
+
+  <h2>Headline</h2>
+  <input type="text" id="headline" placeholder="Track everything, effortlessly" value="">
+  <div class="row" style="margin-top:8px">
+    <div style="flex:2"><label>Font</label><select id="hFont"></select></div>
+    <div><label>Weight</label><select id="hWeight"></select></div>
+  </div>
+  <div class="row">
+    <div><label>Color</label><input type="color" id="hColor" value="#ffffff"></div>
+    <div class="checks">
+      <label><input type="checkbox" id="hItalic"> Italic</label>
+      <label><input type="checkbox" id="hCaps"> Caps</label>
+    </div>
+  </div>
+  <label>Size <span class="val" id="hSizeVal">100%</span></label>
+  <input type="range" id="hSize" min="40" max="220" value="100">
+  <label>Letter spacing <span class="val" id="hSpacVal">0</span></label>
+  <input type="range" id="hSpac" min="-5" max="30" value="0">
+
+  <h2>Subheadline</h2>
+  <input type="text" id="sub" placeholder="Optional smaller line" value="">
+  <div class="row" style="margin-top:8px">
+    <div style="flex:2"><label>Font</label><select id="sFont"></select></div>
+    <div><label>Weight</label><select id="sWeight"></select></div>
+  </div>
+  <div class="row">
+    <div><label>Color</label><input type="color" id="sColor" value="#e2e8f0"></div>
+    <div class="checks">
+      <label><input type="checkbox" id="sItalic"> Italic</label>
+      <label><input type="checkbox" id="sCaps"> Caps</label>
+    </div>
+  </div>
+  <label>Size <span class="val" id="sSizeVal">100%</span></label>
+  <input type="range" id="sSize" min="40" max="220" value="100">
+  <label>Letter spacing <span class="val" id="sSpacVal">0</span></label>
+  <input type="range" id="sSpac" min="-5" max="30" value="0">
+
+  <h2>Text layout</h2>
+  <div class="row">
+    <div>
+      <label>Anchor</label>
+      <select id="textPos">
+        <option value="top" selected>Above phone</option>
+        <option value="bottom">Below phone</option>
+      </select>
+    </div>
+    <div>
+      <label>Align</label>
+      <select id="textAlign">
+        <option value="center" selected>Center</option>
+        <option value="left">Left</option>
+        <option value="right">Right</option>
+      </select>
+    </div>
+  </div>
+  <label>Text horizontal position</label>
+  <input type="range" id="textOffsetX" min="-45" max="45" value="0">
+  <label>Text vertical position</label>
+  <input type="range" id="textOffsetY" min="-45" max="45" value="0">
+  <label>Line height <span class="val" id="lineHVal">120%</span></label>
+  <input type="range" id="lineH" min="90" max="200" value="120">
+  <label>Headline–sub gap <span class="val" id="tGapVal">100%</span></label>
+  <input type="range" id="tGap" min="0" max="300" value="100">
+  <label>Text shadow <span class="val" id="tShadowVal">0</span></label>
+  <input type="range" id="tShadow" min="0" max="100" value="0">
+
+  <h2>Badge &amp; rating</h2>
+  <label>Badge pill</label>
+  <input type="text" id="badge" placeholder="NEW · #1 CARD SCANNER" value="">
+  <div class="row" style="margin-top:8px">
+    <div><label>Pill color</label><input type="color" id="badgeBg" value="#111114"></div>
+    <div><label>Pill text</label><input type="color" id="badgeFg" value="#ffffff"></div>
+  </div>
+  <div class="checks" style="padding-top:12px">
+    <label><input type="checkbox" id="stars"> Show ★★★★★ rating</label>
+  </div>
+  <input type="text" id="starsText" placeholder="4.9 · 2,000 Ratings" value="" style="margin-top:8px">
+
+  <h2>Project</h2>
+  <div class="btnrow" style="margin-top:0">
+    <button id="saveBtn">Save settings</button>
+    <button id="loadBtn">Load settings</button>
+  </div>
+  <input type="file" id="loadInput" accept="application/json" hidden>
+
+  <h2>Export</h2>
+  <div class="btnrow">
+    <button class="primary" id="exportBtn">Export PNG</button>
+    <button id="exportAllBtn">Export all</button>
+  </div>
+  <div id="dropHint" style="margin-top:8px">Exports at the exact pixel size selected above — upload straight to App Store Connect.</div>
+</div>
+
+<div id="main">
+  <div id="stage"><canvas id="canvas"></canvas></div>
+  <div id="statusbar"><span id="statusLeft">No image loaded — showing placeholder</span><span id="statusRight"></span></div>
+</div>
+
+<script>
+"use strict";
+
+const PRESETS = [
+  {name:'iPhone 6.9″ — 1320 × 2868 (16/17 Pro Max)', w:1320, h:2868, kind:'iphone'},
+  {name:'iPhone 6.9″ — 1290 × 2796 (15 Pro Max)',    w:1290, h:2796, kind:'iphone'},
+  {name:'iPhone 6.5″ — 1242 × 2688',                 w:1242, h:2688, kind:'iphone'},
+  {name:'iPhone landscape — 2868 × 1320',            w:2868, h:1320, kind:'iphone-land'},
+  {name:'iPad 13″ — 2064 × 2752',                    w:2064, h:2752, kind:'ipad'},
+  {name:'iPad 13″ landscape — 2752 × 2064',          w:2752, h:2064, kind:'ipad-land'},
+  {name:'iPad 12.9″ — 2048 × 2732',                  w:2048, h:2732, kind:'ipad'},
+  {name:'🎬 App preview — 886 × 1920 (portrait)',     w:886,  h:1920, kind:'iphone',      video:true},
+  {name:'🎬 App preview — 1920 × 886 (landscape)',    w:1920, h:886,  kind:'iphone-land', video:true},
+];
+
+const GRADIENTS = [
+  ['#4f46e5','#9333ea'], ['#0ea5e9','#6366f1'], ['#059669','#0ea5e9'],
+  ['#f97316','#ec4899'], ['#dc2626','#7c3aed'], ['#0f172a','#334155'],
+  ['#111113','#111113'], ['#fafafa','#e4e4e7'], ['#c9a5a0','#8e4a45'],
+];
+
+const FONTS = [
+  ['System (SF Pro)', '-apple-system,"SF Pro Display","Segoe UI",Roboto,sans-serif'],
+  ['Rounded',         'ui-rounded,"SF Pro Rounded","Arial Rounded MT Bold",sans-serif'],
+  ['Helvetica Neue',  '"Helvetica Neue",Helvetica,Arial,sans-serif'],
+  ['Avenir Next',     '"Avenir Next",Avenir,sans-serif'],
+  ['Futura',          'Futura,"Trebuchet MS",sans-serif'],
+  ['Gill Sans',       '"Gill Sans","Gill Sans MT",Calibri,sans-serif'],
+  ['Optima',          'Optima,Candara,sans-serif'],
+  ['Verdana',         'Verdana,Geneva,sans-serif'],
+  ['Georgia',         'Georgia,serif'],
+  ['New York (Serif)','ui-serif,"New York",Georgia,serif'],
+  ['Didot',           'Didot,"Bodoni 72",serif'],
+  ['Baskerville',     'Baskerville,"Times New Roman",serif'],
+  ['Hoefler Text',    '"Hoefler Text","Times New Roman",serif'],
+  ['Palatino',        '"Palatino","Palatino Linotype",serif'],
+  ['American Typewriter','"American Typewriter","Courier New",serif'],
+  ['Menlo (Mono)',    'Menlo,Consolas,monospace'],
+  ['Courier',         '"Courier New",Courier,monospace'],
+  ['Impact',          'Impact,"Arial Black",sans-serif'],
+  ['Copperplate',     'Copperplate,"Copperplate Gothic Light",fantasy'],
+  ['Marker Felt',     '"Marker Felt","Comic Sans MS",cursive'],
+  ['Chalkboard',      '"Chalkboard SE","Comic Sans MS",cursive'],
+  ['Snell Roundhand (Script)', '"Snell Roundhand","Apple Chancery",cursive'],
+];
+
+const WEIGHTS = [[100,'Thin'],[300,'Light'],[400,'Regular'],[500,'Medium'],
+                 [600,'Semibold'],[700,'Bold'],[800,'Heavy'],[900,'Black']];
+
+/* rail palettes: a = corner highlight, b = mid, c = flat */
+const FRAMES = {
+  titanium:{a:'#8d8d93', b:'#55555b', c:'#3a3a40'},
+  black:   {a:'#4a4a4e', b:'#232327', c:'#151517'},
+  silver:  {a:'#e8e8ec', b:'#b9b9c0', c:'#9b9ba3'},
+  gold:    {a:'#f3e3c4', b:'#d5b98a', c:'#b3946a'},
+};
+
+const state = {
+  preset: 2,   // default: 1242 × 2688 (iPhone 6.5″)
+  phones: [{img:-1, scale:0.88, tilt:0, x:0, y:0}],  // up to 3; img = index into images
+  active: 0,                                          // which phone the layout sliders edit
+  bg1:'#4f46e5', bg2:'#9333ea', bgAngle:135,
+  bgType:'linear', shapes:'none', shapeColor:'#ffffff', shapeAlpha:0.12, grain:0,
+  frameColor:'titanium', shadowStr:1, glow:0, glowColor:'#ffffff', glare:false,
+  badge:'', badgeBg:'#111114', badgeFg:'#ffffff', stars:false, starsText:'',
+  fillMode:false, recLen:30, recAudio:true,
+  headline:'', sub:'', textPos:'top',
+  textAlign:'center', textOffsetX:0, textOffsetY:0,
+  head:{font:0, weight:700, size:1, color:'#ffffff', italic:false, caps:false, spacing:0},
+  subx:{font:0, weight:400, size:1, color:'#e2e8f0', italic:false, caps:false, spacing:0},
+  lineH:1.2, tGap:1, tShadow:0,
+  images: [],          // {name, img, url}
+};
+const AP = ()=> state.phones[state.active];
+
+const $ = id => document.getElementById(id);
+const canvas = $('canvas'), ctx = canvas.getContext('2d');
+
+/* ---------- UI wiring ---------- */
+PRESETS.forEach((p,i)=>{
+  const o=document.createElement('option'); o.value=i; o.textContent=p.name; $('preset').append(o);
+});
+$('preset').value = state.preset;
+function fillFontSelect(sel){
+  FONTS.forEach(([label,stack],i)=>{
+    const o=document.createElement('option');
+    o.value=i; o.textContent=label; o.style.fontFamily=stack;
+    sel.append(o);
+  });
+}
+function fillWeightSelect(sel,def){
+  WEIGHTS.forEach(([v,l])=>{
+    const o=document.createElement('option');
+    o.value=v; o.textContent=l; if(v===def) o.selected=true;
+    sel.append(o);
+  });
+}
+fillFontSelect($('hFont'));  fillFontSelect($('sFont'));
+fillWeightSelect($('hWeight'),700); fillWeightSelect($('sWeight'),400);
+GRADIENTS.forEach(([a,b])=>{
+  const s=document.createElement('div'); s.className='swatch';
+  s.style.background=`linear-gradient(135deg,${a},${b})`;
+  s.onclick=()=>{ state.bg1=a; state.bg2=b; $('bg1').value=a; $('bg2').value=b; render(); };
+  $('swatches').append(s);
+});
+
+$('preset').oninput  = e=>{ state.preset=+e.target.value; syncVideoUI(); render(); };
+$('scale').oninput   = e=>{ AP().scale=+e.target.value/100; $('scaleVal').textContent=e.target.value+'%'; render(); };
+$('tilt').oninput    = e=>{ AP().tilt=+e.target.value; $('tiltVal').textContent=e.target.value+'°'; render(); };
+$('offsetX').oninput = e=>{ AP().x=+e.target.value/100; render(); };
+$('offsetY').oninput = e=>{ AP().y=+e.target.value/100; render(); };
+
+function syncPhoneSliders(){
+  const ph=AP();
+  $('scale').value=Math.round(ph.scale*100); $('scaleVal').textContent=Math.round(ph.scale*100)+'%';
+  $('tilt').value=ph.tilt; $('tiltVal').textContent=ph.tilt+'°';
+  $('offsetX').value=Math.round(ph.x*100);
+  $('offsetY').value=Math.round(ph.y*100);
+}
+
+function selectPhone(i){
+  state.active=i;
+  refreshPhoneTabs(); refreshThumbs(); syncPhoneSliders(); render();
+}
+
+function refreshPhoneTabs(){
+  const box=$('phoneTabs'); box.innerHTML='';
+  state.phones.forEach((ph,i)=>{
+    const b=document.createElement('button');
+    b.className=(i===state.active?'sel':'');
+    b.textContent='Phone '+(i+1);
+    b.onclick=()=>selectPhone(i);
+    box.append(b);
+  });
+  if(state.phones.length<3){
+    const add=document.createElement('button');
+    add.className='mini'; add.textContent='＋'; add.title='Add a phone';
+    add.onclick=()=>{
+      const n=state.phones.length;
+      // stagger new phones so a "combined" look appears immediately
+      state.phones.push({
+        img: state.images.length? Math.min(n, state.images.length-1) : -1,
+        scale:0.8, tilt:10, x:0.30*(n===1?1:-1), y:0.10,
+      });
+      selectPhone(state.phones.length-1);
+    };
+    box.append(add);
+  }
+  if(state.phones.length>1){
+    const rm=document.createElement('button');
+    rm.className='mini'; rm.textContent='－'; rm.title='Remove the selected phone';
+    rm.onclick=()=>{
+      state.phones.splice(state.active,1);
+      selectPhone(Math.max(0,state.active-1));
+    };
+    box.append(rm);
+  }
+}
+
+// double-click a slider to reset it to its default
+[['scale',88],['tilt',0],['offsetX',0],['offsetY',0],['bgAngle',135],
+ ['hSize',100],['sSize',100],['hSpac',0],['sSpac',0],
+ ['lineH',120],['tGap',100],['tShadow',0],
+ ['textOffsetX',0],['textOffsetY',0],
+ ['shadowStr',100],['glow',0],['grain',0],['shapeAlpha',12]].forEach(([id,def])=>{
+  $(id).addEventListener('dblclick', ()=>{
+    $(id).value=def; $(id).dispatchEvent(new Event('input'));
+  });
+});
+
+/* ---------- Style presets ----------
+   Each template sets background, phone arrangement and typography.
+   Your uploaded images stay assigned; sample copy is only used while
+   you haven't typed your own headline. */
+const TEMPLATES = [
+  {name:'Classic Center', fg:'#fff',
+   st:{bg1:'#4f46e5',bg2:'#9333ea',bgAngle:135,textPos:'top',textAlign:'center',textOffsetX:0,textOffsetY:0,lineH:1.2,tGap:1,tShadow:0},
+   head:{font:0,weight:700,size:1,color:'#ffffff',italic:false,caps:false,spacing:0},
+   sub:{font:0,weight:400,size:1,color:'#e2e8f0',italic:false,caps:false,spacing:0},
+   phones:[{scale:0.88,tilt:0,x:0,y:0}],
+   sh:'Track everything, effortlessly', ss:'All your tasks in one place'},
+
+  {name:'Tilted Hero', fg:'#fff',
+   st:{bg1:'#0ea5e9',bg2:'#6366f1',bgAngle:120,textPos:'top',textAlign:'center',textOffsetX:0,textOffsetY:0,lineH:1.15,tGap:1,tShadow:25},
+   head:{font:0,weight:800,size:1.15,color:'#ffffff',italic:false,caps:false,spacing:0},
+   sub:{font:0,weight:400,size:1.05,color:'#e0f2fe',italic:false,caps:false,spacing:0},
+   phones:[{scale:1.2,tilt:-12,x:0.02,y:0.16}],
+   sh:'Meet your new favorite app', ss:'Everything in one tap'},
+
+  {name:'Corner Peek', fg:'#fff',
+   st:{bg1:'#0f172a',bg2:'#334155',bgAngle:160,textPos:'top',textAlign:'left',textOffsetX:0,textOffsetY:0.02,lineH:1.1,tGap:1.2,tShadow:0},
+   head:{font:0,weight:800,size:1.25,color:'#ffffff',italic:false,caps:false,spacing:0},
+   sub:{font:0,weight:400,size:1.1,color:'#94a3b8',italic:false,caps:false,spacing:0},
+   phones:[{scale:1.5,tilt:18,x:0.20,y:0.30}],
+   sh:'Powerful. Simple.', ss:'Built for speed'},
+
+  {name:'Duo Overlap', fg:'#fff',
+   st:{bg1:'#c9a5a0',bg2:'#8e4a45',bgAngle:150,textPos:'top',textAlign:'center',textOffsetX:0,textOffsetY:0,lineH:1.2,tGap:1,tShadow:15},
+   head:{font:0,weight:700,size:1,color:'#ffffff',italic:false,caps:false,spacing:0},
+   sub:{font:0,weight:400,size:1,color:'#fdf2f0',italic:false,caps:false,spacing:0},
+   phones:[{scale:1.05,tilt:-8,x:-0.16,y:0.08},{scale:0.92,tilt:9,x:0.32,y:0.20}],
+   sh:'Your whole collection', ss:'Cards, sets and prices in one place'},
+
+  {name:'Trio Fan', fg:'#fff',
+   st:{bg1:'#059669',bg2:'#0ea5e9',bgAngle:135,textPos:'top',textAlign:'center',textOffsetX:0,textOffsetY:0,lineH:1.2,tGap:1,tShadow:20},
+   head:{font:0,weight:800,size:1,color:'#ffffff',italic:false,caps:false,spacing:0},
+   sub:{font:0,weight:400,size:1,color:'#d1fae5',italic:false,caps:false,spacing:0},
+   phones:[{scale:0.72,tilt:-14,x:-0.30,y:0.10},{scale:0.72,tilt:14,x:0.30,y:0.10},{scale:0.85,tilt:0,x:0,y:0.02}],
+   sh:'Three views. One app.', ss:'Home, stats and profile'},
+
+  {name:'Bottom Sheet', fg:'#111',
+   st:{bg1:'#fafafa',bg2:'#e4e4e7',bgAngle:180,textPos:'top',textAlign:'center',textOffsetX:0,textOffsetY:0.01,lineH:1.2,tGap:1,tShadow:0},
+   head:{font:0,weight:700,size:1.05,color:'#111113',italic:false,caps:false,spacing:0},
+   sub:{font:0,weight:400,size:1,color:'#52525b',italic:false,caps:false,spacing:0},
+   phones:[{scale:1.05,tilt:0,x:0,y:0.16}],
+   sh:'Clean. Fast. Yours.', ss:'Designed for focus'},
+
+  {name:'Midnight', fg:'#fff',
+   st:{bg1:'#0a0a0c',bg2:'#1c1c22',bgAngle:180,textPos:'top',textAlign:'center',textOffsetX:0,textOffsetY:0.01,lineH:1.25,tGap:1.4,tShadow:0},
+   head:{font:0,weight:300,size:0.9,color:'#ffffff',italic:false,caps:true,spacing:16},
+   sub:{font:0,weight:300,size:0.95,color:'#a1a1aa',italic:false,caps:false,spacing:6},
+   phones:[{scale:0.82,tilt:0,x:0,y:0.02}],
+   sh:'Minimal by design', ss:'Less, but better'},
+
+  {name:'Sunset Pop', fg:'#fff',
+   st:{bg1:'#f97316',bg2:'#ec4899',bgAngle:120,textPos:'top',textAlign:'center',textOffsetX:0,textOffsetY:0,lineH:1.15,tGap:1,tShadow:45},
+   head:{font:0,weight:900,size:1.2,color:'#ffffff',italic:false,caps:true,spacing:6},
+   sub:{font:0,weight:600,size:1,color:'#ffe4e6',italic:false,caps:false,spacing:0},
+   phones:[{scale:0.95,tilt:-8,x:0.05,y:0.10}],
+   sh:'Level up your day', ss:'Fun that follows you'},
+
+  {name:'Serif Elegant', fg:'#1c1917',
+   st:{bg1:'#f5efe6',bg2:'#e6dbc9',bgAngle:160,textPos:'top',textAlign:'center',textOffsetX:0,textOffsetY:0.01,lineH:1.25,tGap:1.2,tShadow:0},
+   head:{font:10,weight:700,size:1.15,color:'#1c1917',italic:false,caps:false,spacing:0},
+   sub:{font:8,weight:400,size:1,color:'#57534e',italic:true,caps:false,spacing:0},
+   phones:[{scale:0.85,tilt:0,x:0,y:0.03}],
+   sh:'Quietly brilliant', ss:'An app with taste'},
+
+  {name:'Neon Mono', fg:'#22d3ee',
+   st:{bg1:'#0f172a',bg2:'#312e81',bgAngle:135,textPos:'top',textAlign:'left',textOffsetX:0,textOffsetY:0.01,lineH:1.3,tGap:1,tShadow:20},
+   head:{font:15,weight:700,size:0.9,color:'#22d3ee',italic:false,caps:false,spacing:2},
+   sub:{font:15,weight:400,size:0.9,color:'#94a3b8',italic:false,caps:false,spacing:0},
+   phones:[{scale:0.9,tilt:6,x:0.06,y:0.06}],
+   sh:'ship.faster()', ss:'// your code companion'},
+
+  /* ★ = your App Store set: light gray, black headline, gray sub */
+  {name:'★ Scan hero', fg:'#111',
+   st:{bg1:'#f5f5f7',bg2:'#e7e7eb',bgAngle:150,textPos:'top',textAlign:'center',textOffsetX:0,textOffsetY:0.01,lineH:1.15,tGap:1.3,tShadow:0},
+   head:{font:0,weight:800,size:1.15,color:'#111114',italic:false,caps:false,spacing:0},
+   sub:{font:0,weight:400,size:1.05,color:'#6b7280',italic:false,caps:false,spacing:0},
+   phones:[{scale:1.02,tilt:0,x:0,y:0.14}],
+   sh:'Scan.Save.Price', ss:'Designed for Efficiency'},
+
+  {name:'★ Corner tilt', fg:'#111',
+   st:{bg1:'#f5f5f7',bg2:'#e7e7eb',bgAngle:150,textPos:'top',textAlign:'left',textOffsetX:0,textOffsetY:0.01,lineH:1.1,tGap:1.2,tShadow:0},
+   head:{font:0,weight:800,size:1.1,color:'#111114',italic:false,caps:false,spacing:0},
+   sub:{font:0,weight:400,size:1,color:'#8b96a5',italic:false,caps:false,spacing:0},
+   phones:[{scale:1.55,tilt:-27,x:0.24,y:0.36}],
+   sh:'Inventory Made Easy', ss:'Designed for Efficiency'},
+
+  {name:'★ Trio stack', fg:'#111',
+   st:{bg1:'#f5f5f7',bg2:'#e7e7eb',bgAngle:150,textPos:'top',textAlign:'center',textOffsetX:0,textOffsetY:0.01,lineH:1.15,tGap:1.3,tShadow:0},
+   head:{font:0,weight:800,size:1.05,color:'#2a2724',italic:false,caps:false,spacing:0},
+   sub:{font:0,weight:400,size:1,color:'#3f5a50',italic:false,caps:false,spacing:0},
+   phones:[{scale:0.88,tilt:-7,x:-0.30,y:0.14},{scale:0.88,tilt:7,x:0.30,y:0.14},{scale:0.98,tilt:0,x:0,y:0.08}],
+   sh:'Inventory Made Easy', ss:'Designed for Efficiency'},
+
+  {name:'★ Duo spread', fg:'#111',
+   st:{bg1:'#f5f5f7',bg2:'#e7e7eb',bgAngle:150,textPos:'top',textAlign:'center',textOffsetX:0,textOffsetY:0.01,lineH:1.15,tGap:1.3,tShadow:0},
+   head:{font:0,weight:800,size:1.1,color:'#111114',italic:false,caps:false,spacing:0},
+   sub:{font:0,weight:400,size:1.05,color:'#6b7280',italic:false,caps:false,spacing:0},
+   phones:[{scale:1.25,tilt:-14,x:-0.24,y:0.26},{scale:1.08,tilt:13,x:0.28,y:0.40}],
+   sh:'All In One Place', ss:'Designed for Efficiency'},
+
+  {name:'★ Set peek', fg:'#111',
+   st:{bg1:'#f5f5f7',bg2:'#e7e7eb',bgAngle:150,textPos:'top',textAlign:'left',textOffsetX:0,textOffsetY:0.01,lineH:1.1,tGap:1.2,tShadow:0},
+   head:{font:0,weight:800,size:1.1,color:'#111114',italic:false,caps:false,spacing:0},
+   sub:{font:0,weight:400,size:1,color:'#8b96a5',italic:false,caps:false,spacing:0},
+   phones:[{scale:1.5,tilt:22,x:0.14,y:0.34}],
+   sh:'Complete Your Set', ss:'Designed for Efficiency'},
+];
+
+function syncAllControls(){
+  $('preset').value=state.preset;
+  $('bg1').value=state.bg1; $('bg2').value=state.bg2; $('bgAngle').value=state.bgAngle;
+  $('bgType').value=state.bgType; $('shapes').value=state.shapes;
+  $('shapeColor').value=state.shapeColor;
+  $('shapeAlpha').value=Math.round(state.shapeAlpha*100);
+  $('grain').value=Math.round(state.grain*100);
+  $('frameColor').value=state.frameColor;
+  $('shadowStr').value=Math.round(state.shadowStr*100); $('shadowVal').textContent=Math.round(state.shadowStr*100)+'%';
+  $('glow').value=Math.round(state.glow*100); $('glowVal').textContent=Math.round(state.glow*100)+'%';
+  $('glowColor').value=state.glowColor; $('glare').checked=state.glare;
+  $('badge').value=state.badge; $('badgeBg').value=state.badgeBg; $('badgeFg').value=state.badgeFg;
+  $('stars').checked=state.stars; $('starsText').value=state.starsText;
+  $('fillMode').checked=state.fillMode; $('recLen').value=state.recLen;
+  $('recAudio').checked=state.recAudio;
+  $('textPos').value=state.textPos; $('textAlign').value=state.textAlign;
+  $('textOffsetX').value=Math.round(state.textOffsetX*100);
+  $('textOffsetY').value=Math.round(state.textOffsetY*100);
+  $('lineH').value=Math.round(state.lineH*100); $('lineHVal').textContent=Math.round(state.lineH*100)+'%';
+  $('tGap').value=Math.round(state.tGap*100);   $('tGapVal').textContent=Math.round(state.tGap*100)+'%';
+  $('tShadow').value=Math.round(state.tShadow*100); $('tShadowVal').textContent=Math.round(state.tShadow*100);
+  for(const [prefix,obj] of [['h',state.head],['s',state.subx]]){
+    $(prefix+'Font').value=obj.font; $(prefix+'Weight').value=obj.weight;
+    $(prefix+'Color').value=obj.color;
+    $(prefix+'Italic').checked=obj.italic; $(prefix+'Caps').checked=obj.caps;
+    $(prefix+'Size').value=Math.round(obj.size*100); $(prefix+'SizeVal').textContent=Math.round(obj.size*100)+'%';
+    $(prefix+'Spac').value=obj.spacing; $(prefix+'SpacVal').textContent=obj.spacing;
+  }
+  refreshPhoneTabs(); refreshThumbs(); syncPhoneSliders();
+}
+
+function applyTemplate(t){
+  Object.assign(state, t.st);
+  Object.assign(state.head, t.head);
+  Object.assign(state.subx, t.sub);
+  const old=state.phones;
+  state.phones = t.phones.map((ph,i)=>({
+    img: old[i]?.img ?? (state.images[i]? i : (state.images.length? state.images.length-1 : -1)),
+    ...ph,
+  }));
+  state.active=0;
+  // sample copy, only while the user hasn't written their own
+  if((!state.headline.trim() || state._sampleHead) && t.sh){
+    state.headline=t.sh; $('headline').value=t.sh; state._sampleHead=true;
+  }
+  if((!state.sub.trim() || state._sampleSub) && t.ss){
+    state.sub=t.ss; $('sub').value=t.ss; state._sampleSub=true;
+  }
+  syncAllControls();
+  render();
+}
+
+TEMPLATES.forEach(t=>{
+  const b=document.createElement('button');
+  b.textContent=t.name;
+  b.style.background=`linear-gradient(135deg,${t.st.bg1},${t.st.bg2})`;
+  b.style.color=t.fg;
+  b.style.textShadow = t.fg==='#fff' ? '0 1px 2px rgba(0,0,0,.45)' : 'none';
+  b.onclick=()=>applyTemplate(t);
+  $('templateGrid').append(b);
+});
+$('bg1').oninput     = e=>{ state.bg1=e.target.value; render(); };
+$('bg2').oninput     = e=>{ state.bg2=e.target.value; render(); };
+$('bgAngle').oninput = e=>{ state.bgAngle=+e.target.value; render(); };
+$('headline').oninput= e=>{ state.headline=e.target.value; state._sampleHead=false; render(); };
+$('sub').oninput     = e=>{ state.sub=e.target.value; state._sampleSub=false; render(); };
+$('textPos').oninput = e=>{ state.textPos=e.target.value; render(); };
+$('textAlign').oninput=e=>{ state.textAlign=e.target.value; render(); };
+$('textOffsetX').oninput=e=>{ state.textOffsetX=+e.target.value/100; render(); };
+$('textOffsetY').oninput=e=>{ state.textOffsetY=+e.target.value/100; render(); };
+$('lineH').oninput  = e=>{ state.lineH=+e.target.value/100; $('lineHVal').textContent=e.target.value+'%'; render(); };
+$('tGap').oninput   = e=>{ state.tGap=+e.target.value/100; $('tGapVal').textContent=e.target.value+'%'; render(); };
+$('tShadow').oninput= e=>{ state.tShadow=+e.target.value/100; $('tShadowVal').textContent=e.target.value; render(); };
+
+$('bgType').oninput    = e=>{ state.bgType=e.target.value; render(); };
+$('shapes').oninput    = e=>{ state.shapes=e.target.value; render(); };
+$('shapeColor').oninput= e=>{ state.shapeColor=e.target.value; render(); };
+$('shapeAlpha').oninput= e=>{ state.shapeAlpha=+e.target.value/100; render(); };
+$('grain').oninput     = e=>{ state.grain=+e.target.value/100; render(); };
+$('frameColor').oninput= e=>{ state.frameColor=e.target.value; render(); };
+$('shadowStr').oninput = e=>{ state.shadowStr=+e.target.value/100; $('shadowVal').textContent=e.target.value+'%'; render(); };
+$('glow').oninput      = e=>{ state.glow=+e.target.value/100; $('glowVal').textContent=e.target.value+'%'; render(); };
+$('glowColor').oninput = e=>{ state.glowColor=e.target.value; render(); };
+$('glare').oninput     = e=>{ state.glare=e.target.checked; render(); };
+$('badge').oninput     = e=>{ state.badge=e.target.value; render(); };
+$('badgeBg').oninput   = e=>{ state.badgeBg=e.target.value; render(); };
+$('badgeFg').oninput   = e=>{ state.badgeFg=e.target.value; render(); };
+$('stars').oninput     = e=>{ state.stars=e.target.checked; render(); };
+$('starsText').oninput = e=>{ state.starsText=e.target.value; render(); };
+
+/* save / load all settings (images are not included) */
+$('saveBtn').onclick=()=>{
+  const {images,...rest}=state;
+  const blob=new Blob([JSON.stringify(rest,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download='screenshot-settings.json';
+  document.body.append(a); a.click(); a.remove();
+};
+$('loadBtn').onclick=()=>$('loadInput').click();
+$('loadInput').onchange=async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  try{
+    const data=JSON.parse(await f.text());
+    delete data.images;
+    Object.assign(state,data);
+    state.phones.forEach(ph=>{ if(ph.img>=state.images.length) ph.img=state.images.length-1; });
+    state.active=Math.min(state.active,state.phones.length-1);
+    $('headline').value=state.headline; $('sub').value=state.sub;
+    syncAllControls(); render();
+  }catch(err){ alert('Could not read that settings file.'); }
+  e.target.value='';
+};
+
+// per-line text styling (h* = headline, s* = subheadline)
+function bindText(prefix, obj){
+  $(prefix+'Font').oninput  = e=>{ obj.font=+e.target.value; render(); };
+  $(prefix+'Weight').oninput= e=>{ obj.weight=+e.target.value; render(); };
+  $(prefix+'Color').oninput = e=>{ obj.color=e.target.value; render(); };
+  $(prefix+'Italic').oninput= e=>{ obj.italic=e.target.checked; render(); };
+  $(prefix+'Caps').oninput  = e=>{ obj.caps=e.target.checked; render(); };
+  $(prefix+'Size').oninput  = e=>{ obj.size=+e.target.value/100; $(prefix+'SizeVal').textContent=e.target.value+'%'; render(); };
+  $(prefix+'Spac').oninput  = e=>{ obj.spacing=+e.target.value; $(prefix+'SpacVal').textContent=e.target.value; render(); };
+}
+bindText('h', state.head);
+bindText('s', state.subx);
+
+$('pickBtn').onclick = ()=> $('fileInput').click();
+$('fileInput').onchange = e=> addFiles(e.target.files);
+
+const stage = $('stage');
+stage.addEventListener('dragover', e=>{ e.preventDefault(); stage.classList.add('drag'); });
+stage.addEventListener('dragleave', ()=> stage.classList.remove('drag'));
+stage.addEventListener('drop', e=>{
+  e.preventDefault(); stage.classList.remove('drag');
+  addFiles(e.dataTransfer.files);
+});
+window.addEventListener('paste', e=>{
+  const files=[...(e.clipboardData?.items||[])].filter(i=>i.type.startsWith('image/')).map(i=>i.getAsFile());
+  if(files.length) addFiles(files);
+});
+
+function addMedia(item){
+  state.images.push(item);
+  // fill the first phone with no media yet, else put it on the active phone
+  const empty=state.phones.find(ph=>ph.img<0);
+  (empty||AP()).img=state.images.length-1;
+  refreshThumbs(); syncVideoUI(); ensureLoop(); render();
+}
+
+function addFiles(fileList){
+  const files=[...fileList].filter(f=>f && (f.type.startsWith('image/')||f.type.startsWith('video/')));
+  files.forEach(f=>{
+    const url=URL.createObjectURL(f);
+    const name=f.name.replace(/\.[^.]+$/,'');
+    if(f.type.startsWith('video/')){
+      const v=document.createElement('video');
+      v.src=url; v.muted=true; v.loop=true; v.playsInline=true; v.preload='auto';
+      v.onloadeddata=()=>{
+        // a poster frame for the thumbnail strip
+        const pc=document.createElement('canvas');
+        pc.width=v.videoWidth; pc.height=v.videoHeight;
+        pc.getContext('2d').drawImage(v,0,0);
+        v.play().catch(()=>{});
+        addMedia({name, type:'video', el:v, url, poster:pc.toDataURL('image/jpeg',0.6)});
+      };
+      v.onerror=()=>alert(`Could not read "${f.name}". Try an MP4 (H.264) or MOV file.`);
+    }else{
+      const img=new Image();
+      img.onload=()=>addMedia({name, type:'image', el:img, url});
+      img.src=url;
+    }
+  });
+}
+
+function refreshThumbs(){
+  const box=$('thumbs'); box.innerHTML='';
+  state.images.forEach((it,i)=>{
+    const d=document.createElement('div');
+    d.className='thumb'+(i===AP().img?' sel':'');
+    d.title='Show on '+('Phone '+(state.active+1));
+    const im=document.createElement('img');
+    im.src = it.type==='video' ? it.poster : it.url;
+    d.append(im);
+    if(it.type==='video'){
+      const tag=document.createElement('div'); tag.className='vtag'; tag.textContent='▶';
+      d.append(tag);
+    }
+    const x=document.createElement('div'); x.className='x'; x.textContent='×';
+    x.onclick=ev=>{ ev.stopPropagation();
+      const gone=state.images.splice(i,1)[0];
+      if(gone?.type==='video'){ gone.el.pause(); gone.el.src=''; }
+      state.phones.forEach(ph=>{
+        if(ph.img===i) ph.img=-1;
+        else if(ph.img>i) ph.img--;
+      });
+      refreshThumbs(); syncVideoUI(); ensureLoop(); render();
+    };
+    d.append(x);
+    d.onclick=()=>{ AP().img=i; refreshThumbs(); syncVideoUI(); ensureLoop(); render(); };
+    box.append(d);
+  });
+}
+
+/* ---------- Drawing ---------- */
+function rr(c,x,y,w,h,r){ c.beginPath(); c.roundRect(x,y,w,h,r); }
+
+function fontFor(t, sizePx){
+  return `${t.italic?'italic ':''}${t.weight} ${sizePx}px ${FONTS[t.font][1]}`;
+}
+
+/* natural pixel size of an image or video element */
+function mediaWH(it){
+  return it.type==='video'
+    ? {w: it.el.videoWidth||16, h: it.el.videoHeight||9}
+    : {w: it.el.width, h: it.el.height};
+}
+
+/* draw media so it covers the rect, centered and cropped (never squashed) */
+function drawCover(c, it, x, y, w, h){
+  const m=mediaWH(it), ia=m.w/m.h, sa=w/h;
+  let dw,dh;
+  if(ia>sa){ dh=h; dw=dh*ia; } else { dw=w; dh=dw/ia; }
+  try{ c.drawImage(it.el, x+(w-dw)/2, y+(h-dh)/2, dw, dh); }catch(e){}
+}
+
+function hexA(hex,a){
+  const n=parseInt(hex.slice(1),16);
+  return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`;
+}
+
+let _grainCv=null;
+function grainPattern(c){
+  if(!_grainCv){
+    _grainCv=document.createElement('canvas'); _grainCv.width=_grainCv.height=160;
+    const gx=_grainCv.getContext('2d'), id=gx.createImageData(160,160);
+    for(let i=0;i<id.data.length;i+=4){
+      const v=128+((Math.random()*90-45)|0);
+      id.data[i]=id.data[i+1]=id.data[i+2]=v; id.data[i+3]=255;
+    }
+    gx.putImageData(id,0,0);
+  }
+  return c.createPattern(_grainCv,'repeat');
+}
+
+function wrapLines(c,text,maxW){
+  const words=text.split(/\s+/).filter(Boolean); const lines=[]; let cur='';
+  for(const w of words){
+    const t=cur?cur+' '+w:w;
+    if(c.measureText(t).width>maxW && cur){ lines.push(cur); cur=w; } else cur=t;
+  }
+  if(cur) lines.push(cur);
+  return lines;
+}
+
+function drawScene(c, W, H){
+  const p=PRESETS[state.preset];
+  const landscape = W>H;
+
+  /* background */
+  if(state.bgType==='solid'){
+    c.fillStyle=state.bg1; c.fillRect(0,0,W,H);
+  }else if(state.bgType==='radial'){
+    const g=c.createRadialGradient(W*0.35,H*0.28,0,W*0.35,H*0.28,Math.max(W,H)*1.05);
+    g.addColorStop(0,state.bg1); g.addColorStop(1,state.bg2);
+    c.fillStyle=g; c.fillRect(0,0,W,H);
+  }else if(state.bgType==='aurora'){
+    c.fillStyle=state.bg2; c.fillRect(0,0,W,H);
+    const blob=(fx,fy,fr,col,al)=>{
+      const g=c.createRadialGradient(W*fx,H*fy,0,W*fx,H*fy,W*fr);
+      g.addColorStop(0,hexA(col,al)); g.addColorStop(1,hexA(col,0));
+      c.fillStyle=g; c.fillRect(0,0,W,H);
+    };
+    blob(0.20,0.18,0.75,state.bg1,0.95);
+    blob(0.85,0.50,0.60,state.bg1,0.55);
+    blob(0.50,1.00,0.85,'#ffffff',0.20);
+  }else{
+    const a=state.bgAngle*Math.PI/180, cx=W/2, cy=H/2, r=Math.hypot(W,H)/2;
+    const g=c.createLinearGradient(cx-Math.cos(a)*r, cy-Math.sin(a)*r, cx+Math.cos(a)*r, cy+Math.sin(a)*r);
+    g.addColorStop(0,state.bg1); g.addColorStop(1,state.bg2);
+    c.fillStyle=g; c.fillRect(0,0,W,H);
+  }
+
+  /* backdrop shapes */
+  if(state.shapes!=='none'){
+    c.save(); c.globalAlpha=state.shapeAlpha;
+    c.fillStyle=state.shapeColor; c.strokeStyle=state.shapeColor;
+    if(state.shapes==='dots'){
+      const sp=W*0.07, rd=W*0.006;
+      for(let yy=sp/2; yy<H; yy+=sp)
+        for(let xx=sp/2; xx<W; xx+=sp){ c.beginPath(); c.arc(xx,yy,rd,0,7); c.fill(); }
+    }else{
+      for(const [fx,fy,fr] of [[0.12,0.18,0.28],[0.92,0.34,0.34],[0.25,0.88,0.4]]){
+        c.beginPath(); c.arc(W*fx,H*fy,W*fr,0,7);
+        if(state.shapes==='circles') c.fill();
+        else { c.lineWidth=W*0.012; c.stroke(); }
+      }
+    }
+    c.restore();
+  }
+
+  /* text block (measure first — drawn after the phone so it can sit on top) */
+  const base=Math.min(W,H);
+  const th=state.head, ts=state.subx;
+  const headSize=base*0.075*th.size, subSize=base*0.038*ts.size;
+  const headFont=fontFor(th,headSize), subFont=fontFor(ts,subSize);
+  const headText=th.caps? state.headline.trim().toUpperCase() : state.headline.trim();
+  const subText =ts.caps? state.sub.trim().toUpperCase()      : state.sub.trim();
+  const maxTextW=W*0.86, gap=base*0.02*state.tGap;
+  const badgeText=state.badge.trim().toUpperCase();
+  const badgeFont=`600 ${base*0.028}px ${FONTS[0][1]}`;
+  const badgePadX=base*0.024, badgePadY=base*0.014, badgeH=base*0.028+2*badgePadY;
+  const starsOn=state.stars, starSize=base*0.035;
+  let headLines=[], subLines=[], textH=0;
+  const hasText = !!(headText||subText||badgeText||starsOn);
+  if(hasText){
+    c.font=headFont; c.letterSpacing=(th.spacing/100*headSize)+'px';
+    headLines = headText? wrapLines(c,headText,maxTextW):[];
+    c.font=subFont; c.letterSpacing=(ts.spacing/100*subSize)+'px';
+    subLines = subText? wrapLines(c,subText,maxTextW):[];
+    c.letterSpacing='0px';
+    textH = (badgeText? badgeH+base*0.025 : 0)
+          + headLines.length*headSize*state.lineH
+          + (subLines.length? gap + subLines.length*subSize*state.lineH : 0)
+          + (starsOn? base*0.03+starSize : 0);
+  }
+
+  /* phone area — reserved from the anchor position, before text offsets */
+  const margin=H*0.045, textGap=H*0.035;
+  let areaTop=margin, areaBottom=H-margin, textY=0;
+  if(hasText){
+    if(state.textPos==='top'){ textY=H*0.055; areaTop=textY+textH+textGap; }
+    else { areaBottom=H-H*0.055-textH-textGap; textY=areaBottom+textGap; }
+  }
+
+  /* phones — screen keeps the device aspect ratio; drawn in order, later ones on top */
+  const isPad = p.kind.startsWith('ipad');
+  const devLand = p.kind.endsWith('-land');             // the device itself is drawn landscape
+  const screenAspect = devLand ? Math.max(p.w,p.h)/Math.min(p.w,p.h)
+                               : Math.min(p.w,p.h)/Math.max(p.w,p.h);
+  const areaH=areaBottom-areaTop;
+  const bezelRatio = isPad?0.032:0.022;                 // bezel as fraction of phone width
+  const F=FRAMES[state.frameColor]||FRAMES.titanium;
+
+  /* full-bleed mode: the media fills the whole canvas, no device frame.
+     This is what App Store app previews are supposed to look like. */
+  if(state.fillMode){
+    const it=state.images[AP().img];
+    if(it){ drawCover(c, it, 0, 0, W, H); }
+    else{
+      c.fillStyle='rgba(0,0,0,0.35)'; c.fillRect(0,0,W,H);
+      c.fillStyle='rgba(255,255,255,0.7)'; c.textAlign='center'; c.textBaseline='middle';
+      c.font=`600 ${Math.min(W,H)*0.045}px -apple-system,"SF Pro Text",sans-serif`;
+      c.fillText('Fill frame: drop a video or screenshot', W/2, H/2);
+    }
+  }
+
+  for(let pi=0; !state.fillMode && pi<state.phones.length; pi++){
+    const ph=state.phones[pi];
+    const phoneH = areaH*ph.scale;
+    // solve: screenH = phoneH - 2b*phoneW ; screenW = screenH*aspect ; phoneW = screenW + 2b*phoneW
+    let phoneW = phoneH*screenAspect;
+    for(let i=0;i<6;i++){
+      const b=phoneW*bezelRatio;
+      const screenH=phoneH-2*b, screenW=screenH*screenAspect;
+      phoneW=screenW+2*b;
+    }
+    const bez=phoneW*bezelRatio;
+    const phoneX=W/2-phoneW/2 + ph.x*W;
+    const phoneY=areaTop + (areaH-phoneH)/2 + ph.y*H;
+    const outerR=isPad? phoneW*0.065 : Math.min(phoneW,phoneH)*0.175;
+
+    /* optional glow halo behind the phone */
+    if(state.glow>0){
+      const gcx=phoneX+phoneW/2, gcy=phoneY+phoneH/2;
+      const gg=c.createRadialGradient(gcx,gcy,phoneW*0.1,gcx,gcy,phoneH*0.72);
+      gg.addColorStop(0,hexA(state.glowColor,0.6*state.glow));
+      gg.addColorStop(1,hexA(state.glowColor,0));
+      c.fillStyle=gg;
+      c.fillRect(gcx-phoneH*0.8,gcy-phoneH*0.8,phoneH*1.6,phoneH*1.6);
+    }
+
+    /* tilt: rotate everything phone-related around the phone's center */
+    c.save();
+    if(ph.tilt){
+      const pcx=phoneX+phoneW/2, pcy=phoneY+phoneH/2;
+      c.translate(pcx,pcy); c.rotate(ph.tilt*Math.PI/180); c.translate(-pcx,-pcy);
+    }
+
+    const rail=phoneW*(isPad?0.010:0.009);   // visible metal rail thickness
+
+    /* side buttons (behind the body), with a metallic falloff */
+    if(!isPad && !devLand){
+      const bw=phoneW*0.016;
+      const btn=(bx,by,bh,flip)=>{
+        const gg=c.createLinearGradient(bx,0,bx+bw,0);
+        gg.addColorStop(flip?1:0,F.b); gg.addColorStop(flip?0:1,F.c);
+        c.fillStyle=gg; rr(c,bx,by,bw,bh,bw/2); c.fill();
+      };
+      btn(phoneX-bw+2,      phoneY+phoneH*0.21,  phoneH*0.035, false); // action
+      btn(phoneX-bw+2,      phoneY+phoneH*0.275, phoneH*0.06,  false); // vol+
+      btn(phoneX-bw+2,      phoneY+phoneH*0.35,  phoneH*0.06,  false); // vol-
+      btn(phoneX+phoneW-2,  phoneY+phoneH*0.29,  phoneH*0.085, true);  // power
+    }else if(!isPad && devLand){
+      /* landscape phone: long axis is horizontal, island at the left,
+         so the volume/action edge is the bottom and the power edge is the top */
+      const bh=phoneH*0.016;
+      const btn=(bx,by,bwid,flip)=>{
+        const gg=c.createLinearGradient(0,by,0,by+bh);
+        gg.addColorStop(flip?1:0,F.b); gg.addColorStop(flip?0:1,F.c);
+        c.fillStyle=gg; rr(c,bx,by,bwid,bh,bh/2); c.fill();
+      };
+      btn(phoneX+phoneW*0.21,  phoneY+phoneH-2, phoneW*0.035, false); // action
+      btn(phoneX+phoneW*0.275, phoneY+phoneH-2, phoneW*0.06,  false); // vol+
+      btn(phoneX+phoneW*0.35,  phoneY+phoneH-2, phoneW*0.06,  false); // vol-
+      btn(phoneX+phoneW*0.29,  phoneY-bh+2,     phoneW*0.085, true);  // power
+    }else if(isPad){
+      const bw=phoneW*0.010;
+      // top button near the top-right corner
+      const tg=c.createLinearGradient(0,phoneY-bw,0,phoneY);
+      tg.addColorStop(0,F.b); tg.addColorStop(1,F.c);
+      c.fillStyle=tg; rr(c, phoneX+phoneW*0.86, phoneY-bw+2, phoneW*0.05, bw, bw/2); c.fill();
+      // volume rocker high on the right edge
+      const vg=c.createLinearGradient(phoneX+phoneW,0,phoneX+phoneW+bw,0);
+      vg.addColorStop(0,F.b); vg.addColorStop(1,F.c);
+      c.fillStyle=vg;
+      rr(c, phoneX+phoneW-2, phoneY+phoneH*0.040, bw, phoneH*0.030, bw/2); c.fill();
+      rr(c, phoneX+phoneW-2, phoneY+phoneH*0.078, bw, phoneH*0.030, bw/2); c.fill();
+    }
+
+    /* body: wide ambient shadow + tight contact shadow, scaled by the shadow slider */
+    if(state.shadowStr>0){
+      const sst=state.shadowStr;
+      c.save();
+      c.shadowColor=`rgba(0,0,0,${Math.min(0.8,0.35*sst)})`;
+      c.shadowBlur=phoneW*0.22*Math.min(sst,1.4); c.shadowOffsetY=phoneW*0.09;
+      c.fillStyle='#101013'; rr(c,phoneX,phoneY,phoneW,phoneH,outerR); c.fill();
+      c.shadowColor=`rgba(0,0,0,${Math.min(0.8,0.30*sst)})`;
+      c.shadowBlur=phoneW*0.05; c.shadowOffsetY=phoneW*0.015;
+      rr(c,phoneX,phoneY,phoneW,phoneH,outerR); c.fill();
+      c.restore();
+    }
+
+    /* metal rail: brushed gradient, light catching the corners */
+    const railG=c.createLinearGradient(phoneX,phoneY,phoneX+phoneW,phoneY+phoneH);
+    railG.addColorStop(0,F.a); railG.addColorStop(0.10,F.b);
+    railG.addColorStop(0.35,F.c); railG.addColorStop(0.65,F.c);
+    railG.addColorStop(0.90,F.b); railG.addColorStop(1,F.a);
+    c.fillStyle=railG;
+    rr(c,phoneX,phoneY,phoneW,phoneH,outerR); c.fill();
+
+    /* rail edge definition: crisp dark outline + inner rim light */
+    c.lineWidth=Math.max(1,phoneW*0.0020); c.strokeStyle='rgba(0,0,0,0.5)';
+    rr(c,phoneX,phoneY,phoneW,phoneH,outerR); c.stroke();
+    const rim=Math.max(1,phoneW*0.0028);
+    c.lineWidth=rim; c.strokeStyle='rgba(255,255,255,0.30)';
+    rr(c,phoneX+rim,phoneY+rim,phoneW-2*rim,phoneH-2*rim,outerR-rim); c.stroke();
+
+    /* antenna breaks in the rail */
+    if(!isPad){
+      c.fillStyle='rgba(12,12,14,0.5)';
+      const abT=Math.max(2,phoneW*0.004);
+      for(const fy of [0.10,0.90]){
+        c.fillRect(phoneX, phoneY+phoneH*fy, rail*1.15, abT);
+        c.fillRect(phoneX+phoneW-rail*1.15, phoneY+phoneH*fy, rail*1.15, abT);
+      }
+      for(const fx of [0.25,0.75]){
+        c.fillRect(phoneX+phoneW*fx, phoneY, abT, rail*1.15);
+        c.fillRect(phoneX+phoneW*fx, phoneY+phoneH-rail*1.15, abT, rail*1.15);
+      }
+    }
+
+    /* glossy black bezel between rail and screen, with a faint inner sheen */
+    c.fillStyle='#020203';
+    rr(c,phoneX+rail,phoneY+rail,phoneW-2*rail,phoneH-2*rail,outerR-rail); c.fill();
+    const bs=rail*1.9;
+    c.lineWidth=Math.max(1,phoneW*0.0016); c.strokeStyle='rgba(255,255,255,0.06)';
+    rr(c,phoneX+bs,phoneY+bs,phoneW-2*bs,phoneH-2*bs,outerR-bs); c.stroke();
+
+    /* screen */
+    const sx=phoneX+bez, sy=phoneY+bez, sw=phoneW-2*bez, sh=phoneH-2*bez, sr=outerR-bez*0.9;
+    c.save();
+    rr(c,sx,sy,sw,sh,Math.max(sr, phoneW*0.02)); c.clip();
+    const it=state.images[ph.img];
+    if(it){
+      drawCover(c, it, sx, sy, sw, sh);
+    }else{
+      const pg=c.createLinearGradient(sx,sy,sx,sy+sh);
+      pg.addColorStop(0,'#1e293b'); pg.addColorStop(1,'#0f172a');
+      c.fillStyle=pg; c.fillRect(sx,sy,sw,sh);
+      c.fillStyle='rgba(255,255,255,0.55)'; c.textAlign='center'; c.textBaseline='middle';
+      c.font=`600 ${sw*0.06}px -apple-system,"SF Pro Text",sans-serif`;
+      c.fillText(`Phone ${pi+1}: drop a screenshot`, sx+sw/2, sy+sh/2);
+    }
+    if(state.glare){
+      const gl=c.createLinearGradient(sx,sy,sx+sw,sy+sh*0.6);
+      gl.addColorStop(0,'rgba(255,255,255,0.15)');
+      gl.addColorStop(0.45,'rgba(255,255,255,0.05)');
+      gl.addColorStop(0.55,'rgba(255,255,255,0)');
+      c.fillStyle=gl; c.fillRect(sx,sy,sw,sh);
+    }
+    c.restore();
+
+    /* glass edge catchlight around the screen */
+    c.lineWidth=Math.max(1,phoneW*0.0016); c.strokeStyle='rgba(255,255,255,0.10)';
+    rr(c,sx,sy,sw,sh,Math.max(sr,phoneW*0.02)); c.stroke();
+
+    /* dynamic island with a hint of the camera lens
+       (portrait: along the top edge; landscape: a vertical pill at the left) */
+    if(!isPad){
+      let ix,iy,iw,ih,camX,camY,camR;
+      if(devLand){
+        ih=sw*0.032; iw=sh*0.26;
+        ix=sx+sw*0.012; iy=sy+sh/2-iw/2;
+        c.fillStyle='#000'; rr(c, ix, iy, ih, iw, ih/2); c.fill();
+        camX=ix+ih/2; camY=iy+iw-ih*0.62; camR=ih*0.30;
+      }else{
+        iw=sw*0.26; ih=sh*0.032;
+        ix=sx+sw/2-iw/2; iy=sy+sh*0.012;
+        c.fillStyle='#000'; rr(c, ix, iy, iw, ih, ih/2); c.fill();
+        camX=ix+iw-ih*0.62; camY=iy+ih/2; camR=ih*0.30;
+      }
+      c.fillStyle='#16161c';
+      c.beginPath(); c.arc(camX, camY, camR, 0, 7); c.fill();
+      c.fillStyle='#23233a';
+      c.beginPath(); c.arc(camX, camY, camR*0.43, 0, 7); c.fill();
+    }
+
+    /* iPad: front camera centered in the top bezel */
+    if(isPad){
+      const camX=sx+sw/2, camY=phoneY+(rail+bez)/2, camR=Math.max(3,(bez-rail)*0.28);
+      c.fillStyle='#101014';
+      c.beginPath(); c.arc(camX, camY, camR, 0, 7); c.fill();
+      c.fillStyle='#26263a';
+      c.beginPath(); c.arc(camX, camY, camR*0.45, 0, 7); c.fill();
+    }
+
+    c.restore(); /* end tilt */
+  }
+
+  /* draw text (on top, with alignment and free offsets) */
+  if(hasText){
+    const align=state.textAlign;
+    const tx=(align==='left'? W*0.07 : align==='right'? W*0.93 : W/2) + state.textOffsetX*W;
+    c.save();
+    if(state.tShadow>0){
+      c.shadowColor=`rgba(0,0,0,${0.6*state.tShadow})`;
+      c.shadowBlur=base*0.025*state.tShadow;
+      c.shadowOffsetY=base*0.006*state.tShadow;
+    }
+    c.textAlign=align; c.textBaseline='top';
+    let y=textY + state.textOffsetY*H;
+
+    if(badgeText){
+      c.font=badgeFont;
+      const bwid=c.measureText(badgeText).width+2*badgePadX;
+      const bx = align==='left'? tx : align==='right'? tx-bwid : tx-bwid/2;
+      c.fillStyle=state.badgeBg;
+      rr(c,bx,y,bwid,badgeH,badgeH/2); c.fill();
+      c.fillStyle=state.badgeFg; c.textAlign='left';
+      c.fillText(badgeText, bx+badgePadX, y+badgePadY);
+      c.textAlign=align;
+      y+=badgeH+base*0.025;
+    }
+
+    c.fillStyle=th.color; c.font=headFont; c.letterSpacing=(th.spacing/100*headSize)+'px';
+    for(const ln of headLines){ c.fillText(ln,tx,y); y+=headSize*state.lineH; }
+    if(subLines.length){
+      y+=gap;
+      c.fillStyle=ts.color; c.font=subFont; c.letterSpacing=(ts.spacing/100*subSize)+'px';
+      for(const ln of subLines){ c.fillText(ln,tx,y); y+=subSize*state.lineH; }
+    }
+    c.letterSpacing='0px';
+
+    if(starsOn){
+      y+=base*0.03;
+      const starRow='★★★★★', extra=state.starsText.trim();
+      c.font=`600 ${starSize}px ${FONTS[0][1]}`;
+      const wStars=c.measureText(starRow).width;
+      c.font=`400 ${starSize*0.85}px ${FONTS[0][1]}`;
+      const wExtra=extra? c.measureText('  '+extra).width : 0;
+      const total=wStars+wExtra;
+      const sxp = align==='left'? tx : align==='right'? tx-total : tx-total/2;
+      c.textAlign='left';
+      c.font=`600 ${starSize}px ${FONTS[0][1]}`;
+      c.fillStyle='#fbbf24'; c.fillText(starRow,sxp,y);
+      if(extra){
+        c.font=`400 ${starSize*0.85}px ${FONTS[0][1]}`;
+        c.fillStyle=ts.color; c.fillText('  '+extra, sxp+wStars, y+starSize*0.08);
+      }
+      c.textAlign=align;
+    }
+    c.restore();
+  }
+
+  /* film grain overlay */
+  if(state.grain>0){
+    c.save();
+    c.globalAlpha=Math.min(0.35,state.grain*0.35);
+    c.globalCompositeOperation='overlay';
+    c.fillStyle=grainPattern(c);
+    c.fillRect(0,0,W,H);
+    c.restore();
+  }
+}
+
+let _saveTimer=null;
+function autosave(){
+  clearTimeout(_saveTimer);
+  _saveTimer=setTimeout(()=>{
+    try{ const {images,...rest}=state; localStorage.setItem('sstudio',JSON.stringify(rest)); }catch(e){}
+  },400);
+}
+
+function render(){
+  const p=PRESETS[state.preset];
+  if(canvas.width!==p.w||canvas.height!==p.h){ canvas.width=p.w; canvas.height=p.h; }
+  drawScene(ctx, p.w, p.h);
+  const label = state.fillMode
+    ? `Fill frame: ${state.images[AP().img]?.name || 'nothing loaded'}`
+    : state.phones.map((ph,i)=>
+        `Phone ${i+1}: ${ph.img>=0 && state.images[ph.img]? state.images[ph.img].name : 'placeholder'}`).join('   ·   ');
+  $('statusLeft').textContent = recorder? '● Recording…  '+label : label;
+  $('statusRight').textContent = `${p.w} × ${p.h} px`;
+  autosave();
+}
+
+/* ---------- Live playback loop (only while a video is on screen) ---------- */
+let rafId=null, intId=null;
+function shownMedia(){
+  const idx = state.fillMode ? [AP().img] : state.phones.map(ph=>ph.img);
+  return idx.map(i=>state.images[i]).filter(Boolean);
+}
+function shownVideos(){ return shownMedia().filter(m=>m.type==='video'); }
+
+function ensureLoop(){
+  if(rafId!==null){ cancelAnimationFrame(rafId); rafId=null; }
+  if(intId!==null){ clearInterval(intId); intId=null; }
+  if(!shownVideos().length) return;
+  if(recorder){
+    // timers keep firing in a hidden tab; rAF does not, and a stalled
+    // canvas would record as a frozen frame
+    intId=setInterval(render, 1000/30);
+  }else{
+    const tick=()=>{ render(); rafId=requestAnimationFrame(tick); };
+    rafId=requestAnimationFrame(tick);
+  }
+}
+
+/* ---------- Export ---------- */
+function downloadCanvas(cv, filename){
+  return new Promise(res=>{
+    cv.toBlob(blob=>{
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob);
+      a.download=filename;
+      document.body.append(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(a.href),3000);
+      res();
+    },'image/png');
+  });
+}
+
+$('exportBtn').onclick = async ()=>{
+  const p=PRESETS[state.preset];
+  render();
+  const it=state.images[state.phones[0].img];
+  const base = it? it.name : 'screenshot';
+  await downloadCanvas(canvas, `${base}-${p.w}x${p.h}.png`);
+};
+
+/* Export all: cycles every loaded image through the SELECTED phone
+   (other phones keep their images), exporting one PNG per image. */
+$('exportAllBtn').onclick = async ()=>{
+  if(!state.images.length){ $('exportBtn').click(); return; }
+  const p=PRESETS[state.preset];
+  const keep=AP().img;
+  for(let i=0;i<state.images.length;i++){
+    AP().img=i; render();
+    await downloadCanvas(canvas, `${state.images[i].name}-${p.w}x${p.h}.png`);
+    await new Promise(r=>setTimeout(r,400)); // give the browser room between downloads
+  }
+  AP().img=keep; refreshThumbs(); render();
+};
+
+/* ---------- Video: playback controls + recording ---------- */
+var recorder=null;   // var: render() reads this before this line runs on first load
+let recStop=null;
+
+function syncVideoUI(){
+  const vids=shownVideos();
+  const p=PRESETS[state.preset];
+  const has=vids.length>0;
+  $('videoHint').textContent = has
+    ? `${vids.length} video${vids.length>1?'s':''} on screen · longest ${Math.round(Math.max(...vids.map(v=>v.el.duration||0)))}s`
+    : (p.video? 'Add a video (MP4/MOV) to record a preview.' : 'Add a video, or pick a 🎬 App preview size.');
+  $('recordBtn').disabled = !has;
+  $('playBtn').disabled = !has;
+  $('restartBtn').disabled = !has;
+}
+
+$('playBtn').onclick=()=>{
+  const vids=shownVideos();
+  const anyPaused=vids.some(v=>v.el.paused);
+  vids.forEach(v=> anyPaused? v.el.play().catch(()=>{}) : v.el.pause());
+  $('playBtn').textContent = anyPaused? '❚❚ Pause' : '▶ Play';
+  ensureLoop(); render();
+};
+$('restartBtn').onclick=()=>{
+  shownVideos().forEach(v=>{ v.el.currentTime=0; v.el.play().catch(()=>{}); });
+  $('playBtn').textContent='❚❚ Pause';
+  ensureLoop();
+};
+
+function pickMime(withAudio){
+  const want = withAudio
+    ? ['video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4','video/webm;codecs=vp9,opus','video/webm']
+    : ['video/mp4;codecs=avc1.42E01E','video/mp4','video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'];
+  return want.find(t=>window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || '';
+}
+
+$('ffmpegBtn').onclick=()=>{
+  const p=PRESETS[state.preset];
+  const cmd=`ffmpeg -i input.mp4 -vf "scale=${p.w}:${p.h},fps=30" -c:v libx264 -profile:v high `
+          + `-pix_fmt yuv420p -movflags +faststart -c:a aac -b:a 128k output.mov`;
+  navigator.clipboard.writeText(cmd).then(
+    ()=>{ $('ffmpegBtn').textContent='✓ Copied to clipboard'; setTimeout(()=>$('ffmpegBtn').textContent='⧉ Copy ffmpeg fix-up command',1800); },
+    ()=>prompt('Copy this command:', cmd)
+  );
+};
+
+$('recordBtn').onclick=async ()=>{
+  if(recorder){ recStop&&recStop(); return; }
+  const vids=shownVideos();
+  if(!vids.length) return;
+  if(!window.MediaRecorder || !canvas.captureStream){
+    alert('This browser cannot record canvas video. Try Chrome or Safari.');
+    return;
+  }
+  const p=PRESETS[state.preset];
+  const fps=30;
+  const maxLen=Math.max(1, Math.min(30, +$('recLen').value||30));
+  const natural=Math.max(...vids.map(v=>v.el.duration||0));
+  const dur=Math.min(maxLen, natural>0? natural : maxLen);
+
+  // start every visible video from the top, in sync
+  const lead=vids[0].el;
+  const wasMuted=lead.muted;
+  vids.forEach(v=>{ v.el.currentTime=0; v.el.loop=false; });
+  if(state.recAudio) lead.muted=false;        // a muted element captures a silent track
+  await new Promise(r=>setTimeout(r,120));
+  await Promise.all(vids.map(v=>v.el.play().catch(()=>{})));
+  ensureLoop();
+
+  // canvas video + (optionally) the source video's own audio track
+  const stream=canvas.captureStream(fps);
+  let audioTracks=[];
+  if(state.recAudio){
+    try{
+      const cs = lead.captureStream? lead.captureStream()
+               : lead.mozCaptureStream? lead.mozCaptureStream() : null;
+      if(cs) audioTracks=cs.getAudioTracks();
+    }catch(e){}
+  }
+  const mixed=new MediaStream([...stream.getVideoTracks(), ...audioTracks]);
+  const mime=pickMime(audioTracks.length>0);
+  const chunks=[];
+  recorder=new MediaRecorder(mixed, mime? {mimeType:mime, videoBitsPerSecond:14_000_000} : undefined);
+  recorder.ondataavailable=e=>{ if(e.data && e.data.size) chunks.push(e.data); };
+
+  const done=new Promise(res=>{ recorder.onstop=res; });
+  $('recordBtn').textContent='■ Stop recording';
+  $('recordBtn').classList.add('primary');
+
+  let timer=null;
+  recStop=()=>{
+    if(!recorder) return;
+    clearTimeout(timer);
+    if(recorder.state!=='inactive') recorder.stop();
+  };
+  recorder.start(200);
+  ensureLoop();                       // switch the loop to its timer-driven mode
+  timer=setTimeout(recStop, dur*1000+150);
+  await done;
+
+  const type=(chunks[0]&&chunks[0].type)||mime||'video/webm';
+  const ext=type.includes('mp4')?'mp4':'webm';
+  const blob=new Blob(chunks,{type});
+  const base=vids[0].name||'preview';
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`${base}-${p.w}x${p.h}.${ext}`;
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+
+  recorder=null; recStop=null;
+  $('recordBtn').textContent='● Record video';
+  $('recordBtn').classList.remove('primary');
+  lead.muted=wasMuted;
+  vids.forEach(v=>{ v.el.loop=true; v.el.play().catch(()=>{}); });
+  ensureLoop();
+  $('videoHint').innerHTML = ext==='webm'
+    ? `Saved <b>.webm</b> (${Math.round(blob.size/1e5)/10} MB) — App Store Connect needs .mp4/.mov: run the ffmpeg command below.`
+    : `Saved <b>${a.download}</b> (${Math.round(blob.size/1e5)/10} MB) — now run the ffmpeg command below before uploading.`;
+};
+
+$('fillMode').oninput=e=>{ state.fillMode=e.target.checked; syncVideoUI(); ensureLoop(); render(); };
+$('recLen').oninput=e=>{ state.recLen=+e.target.value; };
+$('recAudio').oninput=e=>{ state.recAudio=e.target.checked; };
+
+/* restore the last session's settings (images are not persisted) */
+try{
+  const saved=localStorage.getItem('sstudio');
+  if(saved){
+    Object.assign(state, JSON.parse(saved));
+    state.images=[]; state.phones.forEach(ph=>ph.img=-1);
+    state.active=Math.min(state.active, Math.max(0,state.phones.length-1));
+    $('headline').value=state.headline; $('sub').value=state.sub;
+  }
+}catch(e){}
+syncAllControls();
+syncVideoUI();
+render();
+</script>
+</body>
+</html>
