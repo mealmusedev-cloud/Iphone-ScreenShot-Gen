@@ -4,4 +4,7 @@
 *.mp4
 *.mov
 *.webm
+*.zip
 screenshot-settings.json
+tests/.out/
+node_modules/

@@ -1,11 +1,12 @@
 # App Store Screenshot Studio
 
-A single self-contained HTML page for building App Store Connect screenshots and
-app preview videos. Drop in a screen recording or screenshot, frame it in a
-realistic iPhone/iPad, style it, and export at exact App Store pixel sizes.
+A single self-contained HTML page for producing App Store Connect screenshots
+and app preview videos. Drop in screen recordings or screenshots, frame them in a
+realistic iPhone or iPad, caption and style them, and export a complete,
+upload-ready set at exact App Store pixel sizes.
 
-No build step, no dependencies, no upload — everything runs locally in the browser
-and your media never leaves your machine.
+No build step, no dependencies, no upload. Everything runs locally in the
+browser and your media never leaves your machine.
 
 ## Use it
 
@@ -16,54 +17,71 @@ python3 -m http.server 8899
 # then open http://localhost:8899/iphone-mockup.html
 ```
 
-Chrome is recommended: it records app previews directly as H.264 MP4.
+Chrome, Edge or Safari on macOS is recommended: those encode app previews
+directly to upload-ready H.264 + AAC MP4 files.
 
-## Features
+## What it produces
 
-**Devices and export sizes**
-- iPhone 6.9" (1320x2868, 1290x2796), 6.5" (1242x2688), landscape (2868x1320)
-- iPad 13" (2064x2752) and 12.9" (2048x2732), plus iPad landscape (2752x2064)
-- App preview video: 886x1920 portrait and 1920x886 landscape
-- Exports are pixel-exact, named `<name>-<width>x<height>.png`
+**Screenshots**
+- Flattened 8-bit RGB PNG with no alpha channel (what App Store Connect wants),
+  or JPEG.
+- Pixel-exact at every App Store Connect size, with the required ones marked:
+  iPhone 6.9″ (1320×2868 / 1290×2796), 6.5″, 6.3″, 6.1″, 5.5″, 4.7″, their
+  landscape variants, iPad 13″ (2064×2752 / 2048×2732), 12.9″, 11″, 10.5″, 9.7″
+  and iPad landscape.
+- "Export set" renders every slide at every size you tick into one `.zip`,
+  either one folder per device size or the flat per-locale layout that
+  `fastlane deliver` expects (`en-US/01_iPhone-6.9_headline.png`).
 
-**Composition**
-- Up to 3 devices per image, each with its own media, size, tilt and position
-- Realistic frames: titanium/black/silver/gold rails, antenna breaks, Dynamic
-  Island with camera, glossy bezel, side buttons, dual-layer shadows
-- Backgrounds: linear/radial gradients, aurora blobs, solid, plus backdrop
-  shapes (circles, rings, dot grid), film grain and a glow halo
-- Screen glare, adjustable shadow strength
+**App previews**
+- Exact preview sizes: 886×1920 and 1920×886 (iPhone), 1080×1920 (5.5″),
+  1200×1600 and 1600×1200 (iPad).
+- Frame-exact 30 fps H.264 with AAC audio in a faststart MP4 with correct
+  duration metadata, encoded in the browser with WebCodecs. Length is held to
+  Apple's 15–30 s window and short clips can loop to reach 15 s.
+- Browsers without WebCodecs H.264 fall back to a screen recording and the app
+  hands you the ffmpeg command that fixes it up.
 
-**Text**
-- Separate font, weight, size, color, italic, caps and letter spacing for the
-  headline and subheadline (22 font stacks)
-- Free X/Y positioning, alignment, line height, text shadow
-- Badge pill and a star-rating row for social proof
+## Editing
 
-**Video**
-- Drop in MP4/MOV; it plays live inside the device frame
-- Records the composed canvas (frame, background, text and all) with the
-  source video's audio, capped at the App Store's 30s limit
-- "Fill frame" mode renders the video full-bleed with no device frame
+- **Slides**: up to 10 per set (App Store Connect's limit). Each slide keeps its
+  own headline, devices and look. Add, duplicate, delete and drag to reorder in
+  the strip above the canvas. "Apply this style to all slides" copies one look
+  across the set.
+- **Direct manipulation**: drag devices and the text block on the canvas,
+  scroll over a device to resize it, ⌥+scroll to tilt, double-click to replace
+  its media. Arrow keys nudge the selected device.
+- **Devices**: up to 3 per slide, titanium/black/silver/gold/blue rails,
+  Dynamic Island, side buttons, glossy bezel, layered shadows, glare, glow.
+- **Backgrounds**: linear, radial, aurora and mesh gradients, solid colour,
+  backdrop shapes (circles, rings, dots, grid, waves), film grain, vignette.
+- **Text**: separate font, weight, size, colour, italic, caps and letter spacing
+  for headline and subheadline (22 font stacks), free positioning, alignment,
+  text width, line height, shadow, plus a badge pill and a star-rating row.
+- **Style presets**: 16 one-click looks.
+- **Undo/redo** (⌘Z / ⌘⇧Z), ⌘E export PNG, ⌘⇧E export set, ⌘D duplicate slide,
+  ⌘S save project, `[` `]` switch slides.
+- **Persistence**: the project autosaves, and media is kept in the browser's
+  IndexedDB so a reload brings everything back. Save/load the project as JSON
+  to move it between machines (re-add the media files there).
+- **Readiness check**: a checklist that flags placeholder screens, missing
+  required sizes, sample copy, low-resolution captures, preview length and
+  device frames on previews before you upload.
 
-**Presets and persistence**
-- 15 one-click style presets
-- Save/load settings as JSON; settings also autosave between sessions
+## App Store Connect notes
 
-## Two notes for App Store uploads
+- Only the iPhone 6.9″ and iPad 13″ sizes are required; App Store Connect
+  scales them to every other display. Export the others only if you want to
+  tailor them.
+- App previews must show the app as captured on device. Apple rejects previews
+  that show device hardware, so turn on **Fill frame** for the preview itself
+  and keep the framed renders for your website, social posts and press.
+- Device frames in screenshots are fine and widely used.
+- Previews: 15–30 seconds, H.264, 30 fps, up to 500 MB, up to 3 per device.
 
-**1. Always run the ffmpeg fix-up on recorded video.** Browser `MediaRecorder`
-output carries broken duration metadata, which App Store Connect rejects. The
-app has a button that copies this command with the current dimensions filled in:
+## Development
 
-```bash
-ffmpeg -i input.mp4 -vf "scale=886:1920,fps=30" -c:v libx264 -profile:v high \
-  -pix_fmt yuv420p -movflags +faststart -c:a aac -b:a 128k output.mov
-```
-
-**2. Apple does not allow device frames in app previews.** App previews must be
-captured from the device screen; showing iPhone hardware around your app usually
-gets rejected. Use "Fill frame (no device)" for the App Store video itself, and
-keep the framed look for your website, social posts and press.
-
-Device frames in *screenshots* are fine and widely used.
+The page has no dependencies. The export helpers (RGB PNG encoder, ZIP writer,
+MP4 muxer) live between `/*LIB-START*/` and `/*LIB-END*/` in the script so they
+can be extracted and unit-tested in Node against ffprobe, and the same block is
+loaded into a Web Worker so PNG encoding never blocks the UI.
