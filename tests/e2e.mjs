@@ -14,6 +14,8 @@ const ASSETS = path.join(HERE, '.out', 'assets'); fs.mkdirSync(ASSETS, { recursi
 execSync(`ffmpeg -hide_banner -loglevel error -y -f lavfi -i "testsrc2=size=1290x2796:rate=30:duration=4" -f lavfi -i "sine=frequency=440:duration=4" -c:v libvpx-vp9 -b:v 2M -c:a libopus "${ASSETS}/test.webm"`);
 execSync(`ffmpeg -hide_banner -loglevel error -y -f lavfi -i "testsrc2=size=1290x2796:rate=1:duration=1" -frames:v 1 "${ASSETS}/shot1.png"`);
 execSync(`ffmpeg -hide_banner -loglevel error -y -f lavfi -i "color=c=0x3355ff:size=1290x2796:rate=1:duration=1" -frames:v 1 "${ASSETS}/shot2.png"`);
+execSync(`ffmpeg -hide_banner -loglevel error -y -f lavfi -i "sine=frequency=1000:sample_rate=44100:duration=8" -ac 2 "${ASSETS}/music.wav"`);
+execSync(`ffmpeg -hide_banner -loglevel error -y -f lavfi -i "testsrc2=size=640x1386:rate=30:duration=3" -c:v libvpx-vp9 -b:v 1M -an "${ASSETS}/noaudio.webm"`);
 const OUT = path.join(HERE, '.out', 'e2e'); fs.rmSync(OUT, { recursive: true, force: true }); fs.mkdirSync(OUT, { recursive: true });
 
 let failures = 0;
@@ -166,6 +168,78 @@ dl = page.waitForEvent('download', { timeout: 60000 }); await page.click('#previ
 const recPath = path.join(OUT, d.suggestedFilename()); await d.saveAs(recPath);
 const rp = execSync(`ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,width,height -of csv=p=0 "${recPath}"`).toString().trim();
 check(/886,1920/.test(rp), 'fallback recording has the preview dimensions · ' + rp + ' · ' + d.suggestedFilename());
+
+/* 12. audio: soundtrack upload, silent-video detection, mixed AAC in the exported preview */
+const tonePower = (file, freqs) => {             // relative power of each frequency in the decoded audio (Goertzel)
+  execSync(`ffmpeg -v error -y -i "${file}" -map 0:a -ac 1 -ar 48000 -f f32le -acodec pcm_f32le "${file}.f32"`);
+  const raw = fs.readFileSync(`${file}.f32`), x = new Float32Array(raw.buffer, raw.byteOffset, raw.length / 4);
+  /* measured in 0.25 s blocks and averaged, so phase jumps at video loop points don't cancel the tone out */
+  const B = 12000;
+  return freqs.map(f => { const w = 2 * Math.PI * f / 48000, cf = 2 * Math.cos(w); let sum = 0, cnt = 0;
+    for (let o = 0; o + B <= x.length; o += B) {
+      let s1 = 0, s2 = 0, tot = 0;
+      for (let i = o; i < o + B; i++) { const v = x[i]; tot += v * v; const s0 = v + cf * s1 - s2; s2 = s1; s1 = s0; }
+      if (tot > 1e-9) { sum += (s1 * s1 + s2 * s2 - cf * s1 * s2) / (tot * B / 2); cnt++; }
+    }
+    return cnt ? sum / cnt : 0; });
+};
+await page.evaluate(() => { ui.encoders = null; });
+await page.setInputFiles('#fileInput', [`${ASSETS}/music.wav`, `${ASSETS}/noaudio.webm`]);
+await page.waitForFunction(() => media.some(m => m.kind === 'audio') && media.some(m => m.name === 'noaudio'), null, { timeout: 20000 });
+await page.waitForFunction(() => media.find(m => m.name === 'noaudio').hasAudio, null, { timeout: 20000 });
+const au1 = await page.evaluate(() => ({
+  music: mediaById(project.video.music)?.name, kind: mediaById(project.video.music)?.kind,
+  sel: $('musicSel').value === project.video.music, audioThumb: !!document.querySelector('#thumbs .thumb.audio.sel'),
+  noaudio: media.find(m => m.name === 'noaudio').hasAudio, muteTag: document.querySelectorAll('#thumbs .thumb .mute').length,
+  withAudio: media.find(m => m.name === 'test').hasAudio,
+}));
+check(au1.music === 'music' && au1.kind === 'audio' && au1.sel && au1.audioThumb, 'WAV upload becomes the soundtrack · ' + JSON.stringify(au1));
+check(au1.noaudio === 'none' && au1.muteTag >= 1 && au1.withAudio === 'yes', 'videos with and without sound are detected');
+/* sound monitoring toggle unmutes the shown video */
+await page.evaluate(() => { selectSlide(2); const v = media.find(m => m.name === 'test'); cur().phones[0].media = v.id; cur().fillMode = true; project.video.len = 15; project.video.loop = true; project.video.audio = true; project.video.videoVol = 1; project.video.musicVol = 0.8; syncAll(); render(); });
+await page.click('#soundBtn');
+const mon = await page.evaluate(() => ({ on: ui.sound, muted: media.find(m => m.name === 'test').el.muted, note: $('audioNote').textContent }));
+check(mon.on && !mon.muted && /video sound \+ soundtrack "music"/.test(mon.note), 'sound toggle unmutes the editor; audio plan lists both sources · ' + mon.note);
+await page.click('#soundBtn');
+/* export with both sources — this Chromium has no AAC encoder, so the built-in encoder runs */
+await page.evaluate(() => {
+  /* the page was reloaded since section 7, so re-apply the VP9-for-H.264 stand-in */
+  const Orig = window.VideoEncoder;
+  window.VideoEncoder = class extends Orig {
+    constructor(init) { super({ ...init, output: (chunk, meta) => init.output(chunk, { decoderConfig: { description: new Uint8Array([1, 100, 0, 42, 255, 225, 0, 4, 103, 100, 0, 42, 1, 0, 2, 104, 1]) } }) }); }
+  };
+  ui.encoders = { webcodecs: true, h264: 'vp09.00.10.08', aac: false, recorder: true };
+});
+const exportPreview = async (file) => {
+  await page.click('#previewBtn'); await page.waitForSelector('#previewDlg[open]');
+  const note = await page.evaluate(() => $('pvAudioNote').textContent);
+  const dlp = page.waitForEvent('download', { timeout: 300000 });
+  const failed = page.waitForSelector('.toast.err', { timeout: 300000 }).then(async el => { throw new Error('export failed: ' + await el.textContent()); });
+  await page.click('#previewGo'); const dd = await Promise.race([dlp, failed]);
+  const fp = path.join(OUT, file); await dd.saveAs(fp); return { fp, note };
+};
+let r1 = await exportPreview('audio-both.mp4');
+const a1 = JSON.parse(execSync(`ffprobe -v error -select_streams a:0 -show_entries stream=codec_name,profile,sample_rate,channels,duration,bit_rate -of json "${r1.fp}"`).toString()).streams[0];
+console.log('  preview audio', JSON.stringify(a1), '·', r1.note);
+check(a1 && a1.codec_name === 'aac' && a1.profile === 'LC' && +a1.sample_rate === 48000 && a1.channels === 2, 'exported preview has stereo AAC-LC 48 kHz audio');
+check(Math.abs(+a1.duration - 15) < 0.05, `audio length ${a1.duration}s matches the 15 s preview`);
+check(+a1.bit_rate <= 270000, `audio bitrate ${Math.round(a1.bit_rate / 1000)} kbps within Apple's 256 kbps`);
+const [p440, p1k] = tonePower(r1.fp, [440, 1000]);
+console.log(`  tone power: 440 Hz ${p440.toFixed(3)}, 1 kHz ${p1k.toFixed(3)}`);
+check(p440 > 0.3 && p1k > 0.2, 'mix contains the video sound (440 Hz) and the soundtrack (1 kHz)');
+/* video sound off: only the soundtrack remains */
+await page.evaluate(() => { project.video.audio = false; syncAll(); });
+let r2 = await exportPreview('audio-music-only.mp4');
+const [q440, q1k] = tonePower(r2.fp, [440, 1000]);
+console.log(`  music only: 440 Hz ${q440.toFixed(4)}, 1 kHz ${q1k.toFixed(3)}`);
+check(q440 < 0.01 && q1k > 0.9, 'turning off the video sound leaves just the soundtrack');
+/* nothing to play: the dialog says the preview will be silent */
+await page.evaluate(() => { project.video.music = null; project.video.audio = true; const v = media.find(m => m.name === 'noaudio'); cur().phones[0].media = v.id; syncAll(); render(); });
+await page.click('#previewBtn'); await page.waitForSelector('#previewDlg[open]');
+const silentNote = await page.evaluate(() => $('pvAudioNote').textContent);
+check(/No audio: "noaudio" has no audio track/.test(silentNote), 'dialog explains a silent preview · ' + silentNote);
+await page.keyboard.press('Escape');
+await page.evaluate(() => { project.video.audio = true; const v = media.find(m => m.name === 'test'); cur().phones[0].media = v.id; project.video.music = media.find(m => m.kind === 'audio').id; syncAll(); render(); });
 
 /* screenshots of the UI */
 await page.evaluate(() => { selectSlide(0); project.preset = 'ip69'; syncAll(); render(); });

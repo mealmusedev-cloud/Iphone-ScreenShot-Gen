@@ -120,5 +120,67 @@ function extractAdts(file) {
   const e2 = execSync(`ffmpeg -v error -i ${out}/muxed-v.mp4 -f null - 2>&1 || true`).toString().trim();
   check(e2 === '', 'video-only mux decodes');
 }
+/* ---------- MDCT: fast path equals the spec formula ---------- */
+{
+  const N = 2048, M = 1024, x = new Float64Array(N);
+  for (let i = 0; i < N; i++) x[i] = Math.sin(i * 0.05) * 1000 + Math.cos(i * 0.31) * 400 + (i % 37);
+  const direct = new Float64Array(M), n0 = (N / 2 + 1) / 2;
+  for (let k = 0; k < M; k++) { let s = 0; for (let n = 0; n < N; n++) s += x[n] * Math.cos(2 * Math.PI / N * (n + n0) * (k + 0.5)); direct[k] = 2 * s; }
+  const fast = new Float64Array(M); Bin.makeMdct(N)(x, fast);
+  let e = 0, v = 0; for (let k = 0; k < M; k++) { e = Math.max(e, Math.abs(fast[k] - direct[k])); v = Math.max(v, Math.abs(direct[k])); }
+  check(e / v < 1e-10, 'fast MDCT matches the spec formula (rel err ' + (e / v).toExponential(1) + ')');
+}
+
+/* ---------- AAC-LC encoder: encode → mux → decode with ffmpeg ---------- */
+{
+  const rate = 48000, secs = 6;
+  /* music-like stereo test signal: chords, a bass line, hi-hat noise bursts and a sweep */
+  execSync(`ffmpeg -v error -y -f lavfi -i "aevalsrc='0.25*sin(2*PI*220*t)*(1+0.3*sin(2*PI*0.5*t))+0.18*sin(2*PI*277.18*t)+0.15*sin(2*PI*329.63*t)+0.2*sin(2*PI*55*t)*lt(mod(t,1),0.5)+0.08*(random(0)-0.5)*lt(mod(t*4,1),0.1)|0.22*sin(2*PI*(300+800*t)*t)+0.2*sin(2*PI*440*t)+0.1*sin(2*PI*1760*t):s=${rate}:d=${secs}'" -f f32le -acodec pcm_f32le "${ASSETS}/music.f32"`);
+  const raw = fs.readFileSync(`${ASSETS}/music.f32`), all = new Float32Array(raw.buffer, raw.byteOffset, raw.length / 4);
+  const n = all.length / 2, Lc = new Float32Array(n), Rc = new Float32Array(n);
+  for (let i = 0; i < n; i++) { Lc[i] = all[2 * i]; Rc[i] = all[2 * i + 1]; }
+  const t0 = Date.now();
+  const audio = await Bin.encodeAacLc([Lc, Rc], rate, 256000);
+  const ms = Date.now() - t0;
+  console.log(`  encoded ${secs}s stereo in ${ms} ms (${(secs * 1000 / ms).toFixed(1)}x realtime)`);
+  const video = extractVideo(`${ASSETS}/ref.mp4`);            // 3 s of H.264 just to carry the audio
+  const mp4 = Bin.muxMp4({ video, audio });
+  fs.writeFileSync(`${out}/aac.mp4`, mp4);
+  const pj = JSON.parse(execSync(`ffprobe -v error -select_streams a:0 -show_entries stream=codec_name,profile,sample_rate,channels,duration,bit_rate -of json "${out}/aac.mp4"`).toString()).streams[0];
+  console.log('   ', JSON.stringify(pj));
+  check(pj.codec_name === 'aac' && pj.profile === 'LC' && +pj.sample_rate === 48000 && pj.channels === 2, 'AAC-LC, 48 kHz, stereo');
+  check(Math.abs(+pj.duration - secs) < 0.03, `audio duration ${pj.duration}s ≈ ${secs}s (edit list trims priming)`);
+  const kbps = +pj.bit_rate / 1000;
+  check(kbps <= 270, `bitrate ${kbps.toFixed(0)} kbps stays within Apple's 256 kbps target`);
+  const errs = execSync(`ffmpeg -v error -i "${out}/aac.mp4" -map 0:a -f null - 2>&1 || true`).toString().trim();
+  check(errs === '', 'AAC stream decodes without errors' + (errs ? ': ' + errs.slice(0, 300) : ''));
+  execSync(`ffmpeg -v error -y -i "${out}/aac.mp4" -map 0:a -f f32le -acodec pcm_f32le "${out}/aac-dec.f32"`);
+  const draw = fs.readFileSync(`${out}/aac-dec.f32`), dec = new Float32Array(draw.buffer, draw.byteOffset, draw.length / 4);
+  check(Math.abs(dec.length / 2 - n) <= 1024, `decoded ${dec.length / 2} samples ≈ ${n}`);
+  /* fidelity: SNR per channel at zero lag (the edit list must line samples up exactly) */
+  const snrAt = (ch, lag) => { let s = 0, e = 0; const m = Math.min(n, dec.length / 2) - 2048;
+    for (let i = 2048; i < m; i++) { const ref = ch ? Rc[i] : Lc[i], d = dec[2 * (i + lag) + ch]; s += ref * ref; e += (ref - d) * (ref - d); } return 10 * Math.log10(s / e); };
+  let bestLag = 0, best = -1e9; for (let lag = -1100; lag <= 1100; lag++) { const v = snrAt(0, lag); if (v > best) { best = v; bestLag = lag; } }
+  const snrL = snrAt(0, 0), snrR = snrAt(1, 0);
+  console.log(`  SNR left ${snrL.toFixed(1)} dB, right ${snrR.toFixed(1)} dB, best lag ${bestLag}`);
+  check(bestLag === 0, 'decoded audio is sample-aligned with the source (lag 0)');
+  check(snrL > 25 && snrR > 25, 'waveform SNR above 25 dB on both channels');
+  /* dense full-band content (pink noise) must actually use the 256 kbps budget */
+  execSync(`ffmpeg -v error -y -f lavfi -i "anoisesrc=color=pink:amplitude=0.3:r=${rate}:d=4" -ac 2 -f f32le -acodec pcm_f32le "${ASSETS}/pink.f32"`);
+  const praw = fs.readFileSync(`${ASSETS}/pink.f32`), pall = new Float32Array(praw.buffer, praw.byteOffset, praw.length / 4);
+  const pn = pall.length / 2, PL = new Float32Array(pn), PR = new Float32Array(pn);
+  for (let i = 0; i < pn; i++) { PL[i] = pall[2 * i]; PR[i] = pall[2 * i + 1]; }
+  const pink = await Bin.encodeAacLc([PL, PR], rate, 256000);
+  const pinkKbps = pink.samples.reduce((s, x) => s + x.data.length * 8, 0) / (pn / rate) / 1000;
+  check(pinkKbps > 235 && pinkKbps <= 262, `dense content averages ${pinkKbps.toFixed(0)} kbps ≈ 256 kbps`);
+  check(pink.samples.every(x => x.data.length * 8 <= 6144 * 2), 'every frame within the AAC 6144-bit-per-channel limit');
+  fs.writeFileSync(`${out}/pink.mp4`, Bin.muxMp4({ video, audio: pink }));
+  const perr = execSync(`ffmpeg -v error -i "${out}/pink.mp4" -map 0:a -f null - 2>&1 || true`).toString().trim();
+  check(perr === '', 'dense stream decodes without errors' + (perr ? ': ' + perr.slice(0, 200) : ''));
+  /* silence stays silent and cheap */
+  const quiet = await Bin.encodeAacLc([new Float32Array(48000), new Float32Array(48000)], rate, 256000);
+  check(quiet.samples.every(s => s.data.length <= 8), 'digital silence encodes to minimal frames');
+}
+
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nALL PASS');
 process.exit(failures ? 1 : 0);

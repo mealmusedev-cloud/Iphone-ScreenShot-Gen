@@ -129,6 +129,12 @@
   .thumb .x{position:absolute; top:3px; right:3px; width:18px; height:18px; line-height:16px; text-align:center; border-radius:50%;
             background:rgba(0,0,0,.7); color:#fff; font-size:12px; opacity:0; transition:opacity .15s}
   .thumb:hover .x{opacity:1}
+  .thumb.audio{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:6px;
+               background:linear-gradient(160deg,#2b2350,#151826); color:#fff; text-align:center}
+  .thumb.audio .note-ic{font-size:24px; line-height:1}
+  .thumb.audio .nm{font-size:10px; line-height:1.2; max-height:36px; overflow:hidden; word-break:break-word; opacity:.9}
+  .thumb .mute{position:absolute; right:3px; bottom:3px; padding:1px 4px; border-radius:4px; background:rgba(0,0,0,.72); font-size:10px; line-height:14px}
+  #soundBtn.on{border-color:var(--accent); background:var(--accent-soft)}
   .thumb .vtag{position:absolute; left:3px; bottom:3px; padding:1px 5px; border-radius:4px; background:rgba(0,0,0,.72); color:#fff; font-size:10px; line-height:14px}
   .dropzone{margin-top:8px; border:1.5px dashed var(--border2); border-radius:10px; padding:14px 10px; text-align:center; color:var(--muted);
             font-size:12px; cursor:pointer; transition:border-color .15s, background .15s, color .15s}
@@ -241,11 +247,11 @@
   <section class="sec open" data-sec="media">
     <h2>Screenshots &amp; video <span class="pill" id="mediaPill"></span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg></h2>
     <div class="body"><div class="inner">
-      <div class="dropzone" id="dropzone"><b>＋ Add screenshots or video</b><br>drag &amp; drop, paste <kbd>⌘V</kbd>, or click · PNG/JPG · MP4/MOV</div>
-      <input type="file" id="fileInput" accept="image/*,video/*" multiple hidden>
+      <div class="dropzone" id="dropzone"><b>＋ Add screenshots, video or music</b><br>drag &amp; drop, paste <kbd>⌘V</kbd>, or click · PNG/JPG · MP4/MOV · MP3/M4A/WAV</div>
+      <input type="file" id="fileInput" accept="image/*,video/*,audio/*,.mov,.m4v,.mp3,.m4a,.aac,.wav,.aif,.aiff,.caf,.flac,.ogg,.opus" multiple hidden>
       <input type="file" id="replaceInput" accept="image/*,video/*" hidden>
       <div id="thumbs"></div>
-      <div class="note">Click a thumbnail to put it on the selected phone. Media stays in this browser between sessions.</div>
+      <div class="note">Click a thumbnail to put it on the selected phone, or click a ♪ track to use it as the preview soundtrack. Media stays in this browser between sessions.</div>
     </div></div>
   </section>
 
@@ -412,12 +418,25 @@
       <div class="btnrow" style="margin-top:6px">
         <button id="playBtn" disabled>❚❚ Pause</button>
         <button id="restartBtn" disabled>↺ Restart</button>
+        <button id="soundBtn" class="iconbtn" style="flex:0 0 40px" title="Hear the video sound and soundtrack while editing">🔇</button>
       </div>
       <div class="row">
         <div><label>Length (s) <span class="hint">15–30 required</span></label><input type="number" id="recLen" min="15" max="30" step="1" value="30"></div>
         <div class="checks" style="padding-bottom:9px"><label><input type="checkbox" id="recLoop" checked> Loop short clips</label></div>
       </div>
-      <div class="checks" style="margin-top:10px"><label><input type="checkbox" id="recAudio" checked> Include the video's audio</label></div>
+      <label style="margin-top:14px">Soundtrack <span class="hint">MP3, M4A, WAV, AAC, AIFF…</span></label>
+      <div class="row">
+        <div style="flex:2"><select id="musicSel"></select></div>
+        <div><button id="musicAdd" style="width:100%">＋ Add audio</button></div>
+      </div>
+      <input type="file" id="audioInput" accept="audio/*,.mp3,.m4a,.aac,.wav,.aif,.aiff,.caf,.flac,.ogg,.opus" hidden>
+      <label>Soundtrack volume <span class="val" id="musicVolVal"></span></label>
+      <input type="range" id="musicVol" min="0" max="100" value="80">
+      <div class="checks" style="margin-top:10px"><label><input type="checkbox" id="recAudio" checked> Include the video's own sound</label></div>
+      <label>Video sound volume <span class="val" id="videoVolVal"></span></label>
+      <input type="range" id="videoVol" min="0" max="100" value="100">
+      <div class="checks" style="margin-top:10px"><label><input type="checkbox" id="recFade" checked> Fade the sound in and out</label></div>
+      <div class="note" id="audioNote"></div>
       <div class="btnrow"><button class="primary" id="previewBtn" disabled style="width:100%">🎬 Export app preview (.mp4)</button></div>
       <div class="note" id="encoderNote"></div>
       <div class="btnrow"><button id="ffmpegBtn" style="width:100%">⧉ Copy ffmpeg fix-up command</button></div>
@@ -489,6 +508,7 @@
     <div class="checks" style="margin-top:8px"><label><input type="checkbox" id="pvFill"> Fill frame (no device hardware — required by Apple)</label></div>
     <div class="note" id="pvEncoder" style="margin-top:14px"></div>
     <div class="note" id="pvWarn"></div>
+    <div class="note" id="pvAudioNote"></div>
   </div>
   <div class="dfoot"><button data-close>Cancel</button><button class="primary" id="previewGo">Export .mp4</button></div>
 </dialog>
@@ -671,7 +691,9 @@ const Bin = (() => {
   }
   function trak(t, movieTimescale, trackId) {
     const durTs = t.samples.reduce((s, x) => s + x.duration, 0);
-    const durMovie = Math.round(durTs * movieTimescale / t.timescale);
+    const skip = t.editStart || 0;                 // media samples to hide at the start (AAC encoder priming)
+    const shown = t.editDuration != null ? Math.min(t.editDuration, durTs - skip) : durTs - skip;   // samples actually presented
+    const durMovie = Math.round(shown * movieTimescale / t.timescale);
     const isVideo = t.kind === 'video';
     const tkhd = fullBox('tkhd', 0, 3, u32be(t.created), u32be(t.created), u32be(trackId), u32be(0), u32be(durMovie),
       u32be(0), u32be(0), u16be(0), u16be(0), u16be(isVideo ? 0 : 0x0100), u16be(0), MATRIX,
@@ -690,7 +712,8 @@ const Bin = (() => {
       isVideo ? fullBox('vmhd', 0, 1, u16be(0), u16be(0), u16be(0), u16be(0)) : fullBox('smhd', 0, 0, u16be(0), u16be(0)),
       dinf(), box('stbl', ...stblParts));
     const mdia = box('mdia', mdhd, hdlr(isVideo ? 'vide' : 'soun', isVideo ? 'VideoHandler' : 'SoundHandler'), minf);
-    return box('trak', tkhd, mdia);
+    const edts = skip ? [box('edts', fullBox('elst', 0, 0, u32be(1), u32be(durMovie), u32be(skip), u16be(1), u16be(0)))] : [];
+    return box('trak', tkhd, ...edts, mdia);
   }
   function muxMp4({ video, audio }) {
     const created = mp4Time(), movieTimescale = 1000;
@@ -721,7 +744,7 @@ const Bin = (() => {
     for (const t of tracks) t.chunkOffsets = new Array(t.chunks.length).fill(0);
     const relOffsets = order.map(({ t, ci }) => { const at = rel; for (const s of t.chunks[ci]) { mdatParts.push(s.data); rel += s.data.length; } return at; });
     const buildMoov = () => {
-      const totalDur = Math.max(...tracks.map(t => Math.round(t.samples.reduce((s, x) => s + x.duration, 0) * movieTimescale / t.timescale)));
+      const totalDur = Math.max(...tracks.map(t => { const d = t.samples.reduce((s, x) => s + x.duration, 0) - (t.editStart || 0); return Math.round((t.editDuration != null ? Math.min(t.editDuration, d) : d) * movieTimescale / t.timescale); }));
       const mvhd = fullBox('mvhd', 0, 0, u32be(created), u32be(created), u32be(movieTimescale), u32be(totalDur),
         u32be(0x00010000), u16be(0x0100), u16be(0), u32be(0), u32be(0), MATRIX,
         u32be(0), u32be(0), u32be(0), u32be(0), u32be(0), u32be(0), u32be(tracks.length + 1));
@@ -743,7 +766,173 @@ const Bin = (() => {
     return new Uint8Array([(2 << 3) | (sri >> 1), ((sri & 1) << 7) | (channels << 3)]);
   }
 
-  return { crc32, concat, zlibDeflate, encodePngRgb, zipStore, muxMp4, aacAudioSpecificConfig };
+  /* ISO/IEC 14496-3 Huffman tables (scalefactors; spectral codebook 11) and the
+     44.1/48 kHz long-window scalefactor band offsets, as hex lists (values as in FFmpeg's aactab.c). */
+  const hexList = s => s.split(',').map(v => parseInt(v, 16));
+  const AAC_SF_CODE = hexList('3ffe8,3ffe6,3ffe7,3ffe5,7fff5,7fff1,7ffed,7fff6,7ffee,7ffef,7fff0,7fffc,7fffd,7ffff,7fffe,7fff7,7fff8,7fffb,7fff9,3ffe4,7fffa,3ffe3,1ffef,1fff0,fff5,1ffee,fff2,fff3,fff4,fff1,7ff6,7ff7,3ff9,3ff5,3ff7,3ff3,3ff6,3ff2,1ff7,1ff5,ff9,ff7,ff6,7f9,ff4,7f8,3f9,3f7,3f5,1f8,1f7,fa,f8,f6,79,3a,38,1a,b,4,0,a,c,1b,39,3b,78,7a,f7,f9,1f6,1f9,3f4,3f6,3f8,7f5,7f4,7f6,7f7,ff5,ff8,1ff4,1ff6,1ff8,3ff8,3ff4,fff0,7ff4,fff6,7ff5,3ffe2,7ffd9,7ffda,7ffdb,7ffdc,7ffdd,7ffde,7ffd8,7ffd2,7ffd3,7ffd4,7ffd5,7ffd6,7fff2,7ffdf,7ffe7,7ffe8,7ffe9,7ffea,7ffeb,7ffe6,7ffe0,7ffe1,7ffe2,7ffe3,7ffe4,7ffe5,7ffd7,7ffec,7fff4,7fff3');
+  const AAC_SF_BITS = hexList('12,12,12,12,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,12,13,12,11,11,10,11,10,10,10,10,f,f,e,e,e,e,e,e,d,d,c,c,c,b,c,b,a,a,a,9,9,8,8,8,7,6,6,5,4,3,1,4,4,5,6,6,7,7,8,8,9,9,a,a,a,b,b,b,b,c,c,d,d,d,e,e,10,f,10,f,12,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13');
+  const AAC_C11 = hexList('0,6,19,3d,9c,c6,1a7,390,3c2,3df,7e6,7f3,ffb,7ec,ffa,ffe,38e,5,1,8,14,37,42,92,af,191,1a5,1b5,39e,3c0,3a2,3cd,7d6,ae,17,7,9,18,39,40,8e,a3,b8,199,1ac,1c1,3b1,396,3be,3ca,9d,3c,15,16,1a,3b,44,91,a5,be,196,1ae,1b9,3a1,391,3a5,3d5,94,9a,36,38,3a,41,8c,9b,b0,c3,19e,1ab,1bc,39f,38f,3a9,3cf,93,bf,3e,3f,43,45,9e,a7,b9,194,1a2,1ba,1c3,3a6,3a7,3bb,3d4,9f,1a0,8f,8d,90,98,a6,b6,c4,19f,1af,1bf,399,3bf,3b4,3c9,3e7,a8,1b6,ab,a4,aa,b2,c2,c5,198,1a4,1b8,38c,3a4,3c4,3c6,3dd,3e8,ad,3af,192,bd,bc,18e,197,19a,1a3,1b1,38d,398,3b7,3d3,3d1,3db,7dd,b4,3de,1a9,19b,19c,1a1,1aa,1ad,1b3,38b,3b2,3b8,3ce,3e1,3e0,7d2,7e5,b7,7e3,1bb,1a8,1a6,1b0,1b2,1b7,39b,39a,3ba,3b5,3d6,7d7,3e4,7d8,7ea,ba,7e8,3a0,1bd,1b4,38a,1c4,392,3aa,3b0,3bc,3d7,7d4,7dc,7db,7d5,7f0,c1,7fb,3c8,3a3,395,39d,3ac,3ae,3c5,3d8,3e2,3e6,7e4,7e7,7e0,7e9,7f7,190,7f2,393,1be,1c0,394,397,3ad,3c3,3c1,3d2,7da,7d9,7df,7eb,7f4,7fa,195,7f8,3bd,39c,3ab,3a8,3b3,3b9,3d0,3e3,3e5,7e2,7de,7ed,7f1,7f9,7fc,193,ffd,3dc,3b6,3c7,3cc,3cb,3d9,3da,7d3,7e1,7ee,7ef,7f5,7f6,ffc,fff,19d,1c2,b5,a1,96,97,95,99,a0,a2,ac,a9,b1,b3,bb,c0,18f,4');
+  const AAC_B11 = hexList('4,5,6,7,8,8,9,a,a,a,b,b,c,b,c,c,a,5,4,5,6,7,7,8,8,9,9,9,a,a,a,a,b,8,6,5,5,6,7,7,8,8,8,9,9,9,a,a,a,a,8,7,6,6,6,7,7,8,8,8,9,9,9,a,a,a,a,8,8,7,7,7,7,8,8,8,8,9,9,9,a,a,a,a,8,8,7,7,7,7,8,8,8,9,9,9,9,a,a,a,a,8,9,8,8,8,8,8,8,8,9,9,9,a,a,a,a,a,8,9,8,8,8,8,8,8,9,9,9,a,a,a,a,a,a,8,a,9,8,8,9,9,9,9,9,a,a,a,a,a,a,b,8,a,9,9,9,9,9,9,9,a,a,a,a,a,a,b,b,8,b,9,9,9,9,9,9,a,a,a,a,a,b,a,b,b,8,b,a,9,9,a,9,a,a,a,a,a,b,b,b,b,b,8,b,a,a,a,a,a,a,a,a,a,a,b,b,b,b,b,9,b,a,9,9,a,a,a,a,a,a,b,b,b,b,b,b,9,b,a,a,a,a,a,a,a,a,a,b,b,b,b,b,b,9,c,a,a,a,a,a,a,a,b,b,b,b,b,b,c,c,9,9,8,8,8,8,8,8,8,8,8,8,8,8,8,8,9,5');
+  const AAC_SWB_48 = hexList('0,4,8,c,10,14,18,1c,20,24,28,30,38,40,48,50,58,60,6c,78,84,90,a0,b0,c4,d8,f0,108,124,140,160,180,1a0,1c0,1e0,200,220,240,260,280,2a0,2c0,2e0,300,320,340,360,380,3a0,400');
+
+  /* ---------- AAC-LC encoder (used when the browser has no AAC AudioEncoder) ----------
+     Long blocks with a sine window, an exact FFT-based MDCT, per-band scalefactors from a
+     simple masking target, codebook 11 for every coded band, and frame-level rate control
+     with a bit reservoir to an average bitrate. Produces raw AAC frames (1024 samples each)
+     for the MP4 muxer; the decoder's 1024-sample priming delay is returned for the edit list. */
+  function makeFFT(n) {
+    const rev = new Uint32Array(n), bits = Math.log2(n);
+    for (let i = 0; i < n; i++) { let r = 0; for (let b = 0; b < bits; b++) r |= ((i >> b) & 1) << (bits - 1 - b); rev[i] = r; }
+    const cs = new Float64Array(n / 2), sn = new Float64Array(n / 2);
+    for (let i = 0; i < n / 2; i++) { cs[i] = Math.cos(2 * Math.PI * i / n); sn[i] = -Math.sin(2 * Math.PI * i / n); }
+    return (re, im) => {
+      for (let i = 0; i < n; i++) { const j = rev[i]; if (j > i) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; } }
+      for (let size = 2; size <= n; size <<= 1) {
+        const half = size >> 1, step = n / size;
+        for (let s = 0; s < n; s += size) for (let k = 0; k < half; k++) {
+          const wr = cs[k * step], wi = sn[k * step], a = s + k, b = a + half;
+          const tr = re[b] * wr - im[b] * wi, ti = re[b] * wi + im[b] * wr;
+          re[b] = re[a] - tr; im[b] = im[a] - ti; re[a] += tr; im[a] += ti;
+        }
+      }
+    };
+  }
+  /* MDCT as defined by the AAC spec: X[k] = 2·Σ x[n]·cos(2π/N·(n+n0)·(k+½)), n0 = (N/2+1)/2.
+     Fold to a DCT-IV, then compute that with an N/4-point complex FFT. */
+  function makeMdct(N) {
+    const M = N / 2, H = M / 2, fft = makeFFT(H);
+    const preC = new Float64Array(H), preS = new Float64Array(H), postC = new Float64Array(H), postS = new Float64Array(H);
+    for (let n = 0; n < H; n++) { const a = -Math.PI * (n + 0.25) / M; preC[n] = Math.cos(a); preS[n] = Math.sin(a); }
+    for (let k = 0; k < H; k++) { const a = -Math.PI * k / M; postC[k] = Math.cos(a); postS[k] = Math.sin(a); }
+    const u = new Float64Array(M), re = new Float64Array(H), im = new Float64Array(H);
+    return (x, out) => {
+      for (let n = 0; n < H; n++) { u[n] = -x[3 * H - 1 - n] - x[3 * H + n]; u[n + H] = x[n] - x[M - 1 - n]; }
+      for (let n = 0; n < H; n++) { const a = u[2 * n], b = u[M - 1 - 2 * n]; re[n] = a * preC[n] - b * preS[n]; im[n] = a * preS[n] + b * preC[n]; }
+      fft(re, im);
+      for (let k = 0; k < H; k++) {
+        const r = re[k] * postC[k] - im[k] * postS[k], i = re[k] * postS[k] + im[k] * postC[k];
+        out[2 * k] = 2 * r; out[M - 1 - 2 * k] = -2 * i;
+      }
+    };
+  }
+  class BitWriter {
+    constructor(bytes) { this.buf = new Uint8Array(bytes); this.pos = 0; }
+    put(v, n) { for (let i = n - 1; i >= 0; i--) { if ((v / 2 ** i) & 1) this.buf[this.pos >> 3] |= 0x80 >> (this.pos & 7); this.pos++; } }
+    bytes() { return this.buf.slice(0, (this.pos + 7) >> 3); }
+  }
+  class BitCounter { constructor() { this.pos = 0; } put(v, n) { this.pos += n; } }
+
+  const SF_OFFSET = 100, MAGIC = 0.4054;
+  const qGain = sf => Math.pow(2, 0.25 * (sf - SF_OFFSET));
+  function quantizeBand(X, lo, hi, sf, q) {
+    const inv = 1 / qGain(sf); let err = 0, nz = false;
+    const g = qGain(sf);
+    for (let i = lo; i < hi; i++) {
+      const a = Math.abs(X[i]), v = Math.floor(Math.pow(a * inv, 0.75) + MAGIC);
+      q[i] = X[i] < 0 ? -v : v; if (v) nz = true;
+      const r = Math.pow(v, 4 / 3) * g, d = a - r; err += d * d;
+    }
+    return { err, nz };
+  }
+  function escBits(w, v) { const n = Math.floor(Math.log2(v)) - 4; w.put((1 << n) - 1, n); w.put(0, 1); w.put(v - (1 << (n + 4)), n + 4); }
+  /* one individual_channel_stream (long window, no TNS/pulse/gain control) */
+  function writeIcs(w, ch) {
+    const { maxSfb, sf, cb, q, globalGain } = ch;
+    w.put(globalGain, 8);
+    w.put(0, 1); w.put(0, 2); w.put(0, 1); w.put(maxSfb, 6); w.put(0, 1);   // ics_info: reserved, ONLY_LONG, sine window, max_sfb, no prediction
+    for (let b = 0; b < maxSfb;) {                                         // section_data
+      let e = b; while (e < maxSfb && cb[e] === cb[b]) e++;
+      w.put(cb[b], 4); let len = e - b; while (len >= 31) { w.put(31, 5); len -= 31; } w.put(len, 5);
+      b = e;
+    }
+    let last = globalGain;                                                 // scale_factor_data
+    for (let b = 0; b < maxSfb; b++) if (cb[b]) { const d = sf[b] - last + 60; w.put(AAC_SF_CODE[d], AAC_SF_BITS[d]); last = sf[b]; }
+    w.put(0, 1); w.put(0, 1); w.put(0, 1);                                // no pulse, TNS or gain control
+    for (let b = 0; b < maxSfb; b++) if (cb[b]) {                          // spectral_data, codebook 11
+      for (let i = AAC_SWB_48[b]; i < AAC_SWB_48[b + 1]; i += 2) {
+        const y = q[i], z = q[i + 1], ay = Math.abs(y), az = Math.abs(z), cy = Math.min(ay, 16), cz = Math.min(az, 16), idx = cy * 17 + cz;
+        w.put(AAC_C11[idx], AAC_B11[idx]);
+        if (ay) w.put(y < 0 ? 1 : 0, 1); if (az) w.put(z < 0 ? 1 : 0, 1);
+        if (cy === 16) escBits(w, ay); if (cz === 16) escBits(w, az);
+      }
+    }
+  }
+  /* choose scalefactors for one channel at a given masking SNR (dB) */
+  function planChannel(X, maxSfb, snrDb, q) {
+    const sf = new Int32Array(maxSfb), cb = new Uint8Array(maxSfb), rel = Math.pow(10, -snrDb / 10);
+    for (let b = 0; b < maxSfb; b++) {
+      const lo = AAC_SWB_48[b], hi = AAC_SWB_48[b + 1];
+      let e = 0, peak = 0; for (let i = lo; i < hi; i++) { e += X[i] * X[i]; peak = Math.max(peak, Math.abs(X[i])); }
+      const allowed = Math.max(e * rel, 2e4 * (hi - lo));                  // masking target, floored near 16-bit noise level
+      if (e <= allowed || peak === 0) { for (let i = lo; i < hi; i++) q[i] = 0; continue; }
+      /* coarsest scalefactor that keeps the quantisation error under the target; never let |q| exceed 8191 */
+      let lowest = Math.max(0, Math.ceil(SF_OFFSET + 4 * Math.log2(peak / Math.pow(8191, 4 / 3)))), a = lowest, z = 255;
+      while (a < z) { const m = (a + z + 1) >> 1; if (quantizeBand(X, lo, hi, m, q).err <= allowed) a = m; else z = m - 1; }
+      const r = quantizeBand(X, lo, hi, a, q);
+      if (r.nz) { sf[b] = a; cb[b] = 11; }
+    }
+    /* scalefactor deltas must stay within ±60 of the previous coded band */
+    let prev = -1;
+    for (let b = 0; b < maxSfb; b++) if (cb[b]) {
+      if (prev >= 0 && sf[b] > prev + 60) sf[b] = prev + 60;
+      if (prev >= 0 && sf[b] < prev - 60) sf[b] = prev - 60;
+      const lo = AAC_SWB_48[b], hi = AAC_SWB_48[b + 1];
+      if (!quantizeBand(X, lo, hi, sf[b], q).nz) { cb[b] = 0; continue; }
+      prev = sf[b];
+    }
+    let used = 0; for (let b = 0; b < maxSfb; b++) if (cb[b]) used = b + 1;
+    const first = cb.findIndex(v => v);
+    return { maxSfb: used, sf, cb, q, globalGain: first >= 0 ? sf[first] : SF_OFFSET };
+  }
+  /* chans: [Float32Array left, Float32Array right] at sampleRate (44100 or 48000), values in -1..1 */
+  async function encodeAacLc(chans, sampleRate, bitrate = 256000, onProgress = null) {
+    if (sampleRate !== 48000 && sampleRate !== 44100) throw new Error('AAC encoder supports 44.1 or 48 kHz');
+    const M = 1024, N = 2048, nCh = 2, len = chans[0].length;
+    const L = chans[0], R = chans[1] || chans[0];
+    const frames = Math.ceil(len / M) + 1;                                   // +1 flushes the MDCT overlap
+    const mdct = makeMdct(N), win = new Float64Array(N);
+    for (let n = 0; n < N; n++) win[n] = Math.sin(Math.PI / N * (n + 0.5));
+    const binLimit = Math.floor(20000 / (sampleRate / 2) * M);               // 20 kHz bandwidth
+    let maxSfb = 0; while (maxSfb < AAC_SWB_48.length - 1 && AAC_SWB_48[maxSfb] < binLimit) maxSfb++;
+    const budget = bitrate * M / sampleRate, maxFrame = 6144 * nCh, maxReservoir = maxFrame - budget;
+    let reservoir = 0;
+    const x = new Float64Array(N), spec = [new Float64Array(M), new Float64Array(M)];
+    const qs = [new Int32Array(M), new Int32Array(M)], qBest = [new Int32Array(M), new Int32Array(M)];
+    const samples = [];
+    for (let t = 0; t < frames; t++) {
+      const start = (t - 1) * M;
+      [L, R].forEach((src, c) => {
+        for (let n = 0; n < N; n++) { const i = start + n; x[n] = (i >= 0 && i < len ? src[i] : 0) * 32768 * win[n]; }
+        mdct(x, spec[c]);
+      });
+      const target = Math.min(maxFrame - 64, budget + reservoir);
+      /* rate control: highest masking SNR whose frame fits the bit target */
+      const frameBits = snr => {
+        const plans = [0, 1].map(c => planChannel(spec[c], maxSfb, snr, qs[c]));
+        const w = new BitCounter(); w.put(1, 3); w.put(0, 4); w.put(0, 1); plans.forEach(p => writeIcs(w, p)); w.put(7, 3);
+        return { bits: (w.pos + 7) & ~7, plans };
+      };
+      let lo = -20, hi = 110, best = null;
+      for (let it = 0; it < 9; it++) {
+        const mid = (lo + hi) / 2, r = frameBits(mid);
+        if (r.bits <= target) { best = { snr: mid, ...r }; lo = mid; r.plans.forEach((p, c) => qBest[c].set(qs[c])); } else hi = mid;
+      }
+      if (!best) { best = { snr: lo, ...frameBits(lo) }; best.plans.forEach((p, c) => qBest[c].set(qs[c])); }
+      best.plans.forEach((p, c) => { p.q = qBest[c]; });
+      const w = new BitWriter(Math.ceil(maxFrame / 8) + 16);
+      w.put(1, 3); w.put(0, 4); w.put(0, 1);                                // ID_CPE, tag 0, common_window = 0
+      best.plans.forEach(p => writeIcs(w, p));
+      w.put(7, 3);                                                          // ID_END
+      const data = w.bytes();
+      reservoir = Math.max(0, Math.min(maxReservoir, reservoir + budget - data.length * 8));
+      samples.push({ data, duration: M });
+      if (onProgress && t % 32 === 0) { onProgress(t / frames); await new Promise(r => setTimeout(r, 0)); }
+    }
+    return { sampleRate, channels: nCh, samples, description: aacAudioSpecificConfig(sampleRate, nCh), editStart: M, editDuration: len,
+             avgBitrate: bitrate, maxBitrate: Math.round(bitrate * 1.5) };
+  }
+
+  return { crc32, concat, zlibDeflate, encodePngRgb, zipStore, muxMp4, aacAudioSpecificConfig, encodeAacLc, makeMdct };
 })();
 /*LIB-END*/
 
@@ -934,13 +1123,13 @@ function defaultProject() {
   return {
     v: 2, name: 'My App', preset: 'ip69', slides: [defaultSlide()], active: 0,
     export: { format: 'png', layout: 'folders', locale: 'en-US', scope: 'all', sizes: ['ip69', 'ipad13'] },
-    video: { len: 30, loop: true, audio: true },
+    video: { len: 30, loop: true, audio: true, videoVol: 1, music: null, musicVol: 0.8, fade: true },
   };
 }
 let project = defaultProject();
 let media = [];           // runtime: {id, name, kind:'image'|'video', blob, el, url, poster, w, h, duration}
 let activePhone = 0;
-const ui = { hoverPhone: -1, hoverText: false, drag: null, pointerIn: false, busy: false, recorder: null, encoders: null };
+const ui = { sound: false, hoverPhone: -1, hoverText: false, drag: null, pointerIn: false, busy: false, recorder: null, encoders: null };
 const cur = () => project.slides[project.active];
 const curDev = () => DEV[project.preset] || DEVICES[0];
 const AP = () => cur().phones[Math.min(activePhone, cur().phones.length - 1)];
@@ -993,7 +1182,7 @@ function setProgress(frac, label) {
 function setBusy(on) {
   ui.busy = on;
   for (const id of ['exportBtn', 'exportSetBtn', 'previewBtn', 'exportSetGo', 'previewGo']) $(id).disabled = on || ($(id).dataset.lock === '1');
-  if (!on) { syncVideoUI(); ensureLoop(); }
+  if (!on) { syncVideoUI(); ensureLoop(); } else applySound();
 }
 
 /* =====================================================================
@@ -1075,6 +1264,9 @@ function sanitizeProject() {
   if (!project.export.sizes.length) project.export.sizes = ['ip69', 'ipad13'];
   project.video = { ...defaultProject().video, ...(project.video || {}) };
   project.video.len = clamp(Math.round(+project.video.len || 30), 15, 30);
+  project.video.videoVol = clamp(+project.video.videoVol, 0, 1); if (isNaN(project.video.videoVol)) project.video.videoVol = 1;
+  project.video.musicVol = clamp(+project.video.musicVol, 0, 1); if (isNaN(project.video.musicVol)) project.video.musicVol = 0.8;
+  if (!project.video.music || !mediaById(project.video.music) || mediaById(project.video.music).kind !== 'audio') project.video.music = null;
   if (typeof project.name !== 'string') project.name = 'My App';
   activePhone = clamp(activePhone, 0, cur().phones.length - 1);
 }
@@ -1214,14 +1406,14 @@ function syncControls() {
 function syncAll() {
   syncPresetNote(); syncControls();
   $('projectName').value = project.name;
-  $('recLen').value = project.video.len; $('recLoop').checked = project.video.loop; $('recAudio').checked = project.video.audio;
+  $('recLen').value = project.video.len; $('recLoop').checked = project.video.loop; syncAudioControls();
   refreshPhoneTabs(); refreshThumbs(); syncVideoUI(); ensureLoop(); syncUndoButtons();
 }
 $('projectName').oninput = e => { touch(); project.name = e.target.value; };
 $('recLen').oninput = e => { project.video.len = clamp(Math.round(+e.target.value || 30), 15, 30); syncVideoUI(); autosave(); };
 $('recLen').onchange = e => { e.target.value = project.video.len; };
 $('recLoop').oninput = e => { project.video.loop = e.target.checked; syncVideoUI(); autosave(); };
-$('recAudio').oninput = e => { project.video.audio = e.target.checked; autosave(); };
+$('recAudio').oninput = e => { project.video.audio = e.target.checked; syncAudioControls(); syncVideoUI(); autosave(); };
 
 /* ---------- phone tabs ---------- */
 function selectPhone(i) { activePhone = clamp(i, 0, cur().phones.length - 1); refreshPhoneTabs(); refreshThumbs(); syncControls(); render(); }
@@ -1254,6 +1446,24 @@ function refreshPhoneTabs() {
    ===================================================================== */
 async function createMedia(rec) {
   const url = URL.createObjectURL(rec.blob);
+  if (rec.kind === 'audio') {
+    const a = document.createElement('audio'); a.preload = 'auto'; a.loop = true; a.src = url;
+    let playable = true;
+    await new Promise(res => {
+      const to = setTimeout(() => { playable = false; res(); }, 15000);
+      a.onloadedmetadata = () => { clearTimeout(to); res(); };
+      a.onerror = () => { clearTimeout(to); playable = false; res(); };
+    });
+    if (playable) await ensureDuration(a);
+    let duration = playable ? a.duration : 0;
+    /* formats the <audio> element can't play may still decode (and the export only needs decoding) */
+    if (!playable || !isFinite(duration) || !duration) {
+      const buf = await decodedAudio({ id: rec.id, blob: rec.blob });
+      if (!buf) { URL.revokeObjectURL(url); throw new Error('decode'); }
+      duration = buf.duration;
+    }
+    return { ...rec, el: playable ? a : null, url, w: 0, h: 0, duration };
+  }
   if (rec.kind === 'video') {
     const v = document.createElement('video');
     v.muted = true; v.loop = true; v.playsInline = true; v.preload = 'auto'; v.src = url;
@@ -1263,6 +1473,7 @@ async function createMedia(rec) {
       v.onerror = () => { clearTimeout(to); rej(new Error('decode')); };
     });
     await ensureDuration(v);
+    if (!v.videoWidth) { v.removeAttribute('src'); v.load(); URL.revokeObjectURL(url); return createMedia({ ...rec, kind: 'audio' }); }  // audio-only .mp4/.m4a
     const pc = document.createElement('canvas'); const s = Math.min(1, 240 / (v.videoHeight || 240));
     pc.width = Math.max(1, Math.round(v.videoWidth * s)); pc.height = Math.max(1, Math.round(v.videoHeight * s));
     try { pc.getContext('2d').drawImage(v, 0, 0, pc.width, pc.height); } catch (e) {}
@@ -1284,50 +1495,82 @@ function ensureDuration(v) {
   });
 }
 async function addFiles(fileList, targetPhone = null) {
-  const files = [...fileList].filter(f => f && (f.type.startsWith('image/') || f.type.startsWith('video/') || /\.(mov|mp4|m4v|webm)$/i.test(f.name)));
-  if (!files.length) { toast('Drop PNG/JPG screenshots or MP4/MOV videos.', 'warn'); return; }
-  let added = 0;
+  const kindOf = f => f.type.startsWith('audio/') || AUDIO_EXT.test(f.name) ? 'audio'
+                   : f.type.startsWith('video/') || VIDEO_EXT.test(f.name) ? 'video'
+                   : f.type.startsWith('image/') ? 'image' : null;
+  const files = [...fileList].filter(f => f && kindOf(f));
+  if (!files.length) { toast('Drop PNG/JPG screenshots, MP4/MOV videos, or MP3/M4A/WAV audio.', 'warn'); return; }
+  let added = 0, soundtrack = null;
   for (const f of files) {
-    const kind = f.type.startsWith('video/') || /\.(mov|mp4|m4v|webm)$/i.test(f.name) ? 'video' : 'image';
-    const rec = { id: uid(), name: f.name.replace(/\.[^.]+$/, ''), kind, blob: f, order: Date.now() + added };
+    const rec = { id: uid(), name: f.name.replace(/\.[^.]+$/, ''), kind: kindOf(f), blob: f, order: Date.now() + added };
     try {
       const item = await createMedia(rec);
       media.push(item); added++;
-      DB.put({ id: rec.id, name: rec.name, kind, blob: f, order: rec.order });
+      DB.put({ id: item.id, name: item.name, kind: item.kind, blob: f, order: item.order });
       touch();
-      const S = cur();
-      if (targetPhone != null && S.phones[targetPhone]) S.phones[targetPhone].media = item.id;
-      else { const empty = S.phones.find(ph => !ph.media); (empty || AP()).media = item.id; }
+      if (item.kind === 'audio') {
+        /* audio becomes the preview soundtrack (the newest one wins) */
+        project.video.music = item.id; soundtrack = item;
+      } else {
+        const S = cur();
+        if (targetPhone != null && S.phones[targetPhone]) S.phones[targetPhone].media = item.id;
+        else { const empty = S.phones.find(ph => !ph.media); (empty || AP()).media = item.id; }
+        if (item.kind === 'video') probeAudio(item);
+      }
     } catch (e) {
-      toast(`Could not read "${f.name}". ${kind === 'video' ? 'Try an MP4 (H.264) or MOV file.' : 'Try a PNG or JPEG.'}`, 'err', 5000);
+      const hint = rec.kind === 'video' ? 'Try an MP4 (H.264) or MOV file.' : rec.kind === 'audio' ? 'Try an MP3, M4A or WAV file.' : 'Try a PNG or JPEG.';
+      toast(`Could not read "${f.name}". ${hint}`, 'err', 5000);
     }
   }
-  refreshThumbs(); syncVideoUI(); ensureLoop(); render(); refreshStrip(true);
-  if (added) toast(`Added ${added} file${added > 1 ? 's' : ''}.`, 'ok', 1800);
+  refreshThumbs(); syncAudioControls(); syncVideoUI(); ensureLoop(); render(); refreshStrip(true);
+  if (soundtrack) toast(`Soundtrack set to "${soundtrack.name}" (${Math.round(soundtrack.duration)} s). It plays under your app preview.`, 'ok', 4000);
+  else if (added) toast(`Added ${added} file${added > 1 ? 's' : ''}.`, 'ok', 1800);
 }
 function removeMedia(id) {
   const i = media.findIndex(m => m.id === id); if (i < 0) return;
   touch();
   const gone = media.splice(i, 1)[0];
-  if (gone.kind === 'video') { gone.el.pause(); gone.el.removeAttribute('src'); gone.el.load(); }
+  if (gone.el && (gone.kind === 'video' || gone.kind === 'audio')) { gone.el.pause(); gone.el.removeAttribute('src'); gone.el.load(); }
   URL.revokeObjectURL(gone.url);
+  _audioCache.delete(id);
   for (const s of project.slides) for (const ph of s.phones) if (ph.media === id) ph.media = null;
+  if (project.video.music === id) project.video.music = null;
   DB.del(id);
-  refreshThumbs(); syncVideoUI(); ensureLoop(); render(); refreshStrip(true);
+  refreshThumbs(); syncAudioControls(); syncVideoUI(); ensureLoop(); render(); refreshStrip(true);
 }
 function refreshThumbs() {
   const box = $('thumbs'); box.innerHTML = '';
   const S = cur(); const used = new Set(project.slides.flatMap(s => s.phones.map(p => p.media)));
   media.forEach(it => {
     const d = document.createElement('div');
+    if (it.kind === 'audio') {
+      const isMusic = project.video.music === it.id;
+      d.className = 'thumb audio' + (isMusic ? ' sel used' : '');
+      d.title = `${it.name} · ${Math.round(it.duration)} s audio\nClick: ${isMusic ? 'stop using' : 'use'} as the preview soundtrack`;
+      const ic = document.createElement('div'); ic.className = 'note-ic'; ic.textContent = '♪';
+      const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = it.name;
+      const tag = document.createElement('div'); tag.className = 'vtag'; tag.textContent = Math.round(it.duration) + 's';
+      const x = document.createElement('div'); x.className = 'x'; x.textContent = '×'; x.title = 'Remove from the library';
+      x.onclick = ev => { ev.stopPropagation(); removeMedia(it.id); };
+      d.append(ic, nm, tag, x);
+      d.onclick = () => { touch(); project.video.music = isMusic ? null : it.id; refreshThumbs(); syncAudioControls(); syncVideoUI(); };
+      box.append(d); return;
+    }
     d.className = 'thumb' + (it.id === AP().media ? ' sel' : '') + (used.has(it.id) ? ' used' : '');
     d.title = `${it.name} · ${it.w}×${it.h}${it.kind === 'video' ? ` · ${Math.round(it.duration)}s` : ''}\nClick: show on the selected device`;
     const im = document.createElement('img'); im.src = it.kind === 'video' ? it.poster : it.url; im.draggable = false; d.append(im);
-    if (it.kind === 'video') { const tag = document.createElement('div'); tag.className = 'vtag'; tag.textContent = '▶ ' + Math.round(it.duration) + 's'; d.append(tag); }
+    if (it.kind === 'video') {
+      const tag = document.createElement('div'); tag.className = 'vtag'; tag.textContent = '▶ ' + Math.round(it.duration) + 's'; d.append(tag);
+      if (it.hasAudio === 'none' || it.hasAudio === 'silent') {
+        const mu = document.createElement('div'); mu.className = 'mute'; mu.textContent = '🔇';
+        mu.title = it.hasAudio === 'none' ? 'This video has no audio track' : 'This video’s audio track is silent'; d.append(mu);
+      }
+    }
     const x = document.createElement('div'); x.className = 'x'; x.textContent = '×'; x.title = 'Remove from the library';
     x.onclick = ev => { ev.stopPropagation(); removeMedia(it.id); };
     d.append(x);
     d.onclick = () => { touch(); AP().media = it.id; refreshThumbs(); syncVideoUI(); ensureLoop(); render(); };
+    if (it.kind === 'video') d.title += it.hasAudio === 'none' ? '\nNo audio track' : it.hasAudio === 'silent' ? '\nSilent audio track' : it.hasAudio === 'yes' ? '\nHas sound' : '';
     box.append(d);
   });
   $('mediaPill').textContent = media.length ? String(media.length) : '';
@@ -2014,27 +2257,185 @@ canvas.addEventListener('dblclick', e => {
 });
 
 /* =====================================================================
+   Audio: decoding, sound monitoring in the editor, the export mix and AAC encoding.
+   Apple's spec for H.264 previews: stereo AAC, 256 kbps, 44.1 or 48 kHz.
+   ===================================================================== */
+const AUDIO_RATE = 48000, AUDIO_KBPS = 256000;
+const AUDIO_EXT = /\.(mp3|m4a|aac|wav|wave|aif|aiff|caf|flac|ogg|oga|opus)$/i;
+const VIDEO_EXT = /\.(mov|mp4|m4v|webm)$/i;
+const _audioCache = new Map();          // media id → Promise<AudioBuffer|null>
+/* decode a file's audio to 48 kHz; null when it has no (decodable) audio track */
+function decodedAudio(it) {
+  if (!it || !it.blob) return Promise.resolve(null);
+  if (!_audioCache.has(it.id)) _audioCache.set(it.id, (async () => {
+    try {
+      const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      const ac = new OAC(2, 1, AUDIO_RATE);
+      const buf = await ac.decodeAudioData(await it.blob.arrayBuffer());
+      return buf && buf.length ? buf : null;
+    } catch (e) { return null; }
+  })());
+  return _audioCache.get(it.id);
+}
+/* find out (in the background) whether a video actually carries sound */
+async function probeAudio(it) {
+  const buf = await decodedAudio(it);
+  let peak = 0;
+  if (buf) for (let c = 0; c < buf.numberOfChannels; c++) { const d = buf.getChannelData(c); for (let i = 0; i < d.length; i += 7) { const a = Math.abs(d[i]); if (a > peak) peak = a; } }
+  it.hasAudio = !buf ? 'none' : peak < 1e-4 ? 'silent' : 'yes';
+  refreshThumbs(); syncVideoUI();
+}
+
+/* ---------- hearing it in the editor ---------- */
+function applySound() {
+  const V = project.video, shown = new Set(shownVideos().map(v => v.id));
+  for (const m of media) if (m.kind === 'video') {
+    const on = ui.sound && V.audio && shown.has(m.id);
+    m.el.muted = !on; m.el.volume = clamp(V.videoVol, 0, 1);
+  }
+  const music = mediaById(V.music), playing = shownVideos().some(v => !v.el.paused);
+  for (const m of media) if (m.kind === 'audio' && m.el && m !== music) m.el.pause();
+  if (music && music.el) {
+    music.el.volume = clamp(V.musicVol, 0, 1);
+    if (ui.sound && playing && !ui.busy) music.el.play().catch(() => {}); else music.el.pause();
+  }
+  $('soundBtn').textContent = ui.sound ? '🔊' : '🔇';
+  $('soundBtn').title = ui.sound ? 'Sound on — click to mute the editor' : 'Hear the video sound and soundtrack while editing';
+  $('soundBtn').classList.toggle('on', ui.sound);
+}
+
+/* ---------- the export mix: video sound + soundtrack, 48 kHz stereo ---------- */
+async function buildAudioMix(S, len, loop) {
+  const V = project.video, n = Math.round(len * AUDIO_RATE);
+  const L = new Float32Array(n), R = new Float32Array(n), parts = [], notes = [];
+  const add = (buf, gain, period) => {           // period (s): loop length, or 0 to play once
+    const l = buf.getChannelData(0), r = buf.numberOfChannels > 1 ? buf.getChannelData(1) : l, m = buf.length;
+    const per = period > 0 ? Math.max(1, Math.round(period * AUDIO_RATE)) : 0;
+    for (let i = 0; i < n; i++) {
+      const j = per ? i % per : i;
+      if (j >= m) { if (!per) break; continue; }
+      L[i] += l[j] * gain; R[i] += r[j] * gain;
+    }
+  };
+  const lead = shownVideos(S)[0];
+  if (V.audio && V.videoVol > 0 && lead) {
+    const buf = await decodedAudio(lead);
+    if (buf) { add(buf, V.videoVol, loop ? (lead.el.duration || buf.duration) : 0); parts.push('video sound'); }
+    else notes.push(`"${lead.name}" has no audio track`);
+  }
+  const music = mediaById(V.music);
+  if (music && V.musicVol > 0) {
+    const buf = await decodedAudio(music);
+    if (buf) { add(buf, V.musicVol, buf.duration); parts.push(`soundtrack "${music.name}"`); }
+    else notes.push(`could not decode "${music.name}"`);
+  }
+  if (!parts.length) return { mix: null, parts, notes };
+  /* fades: gentle in/out when asked, otherwise just enough to avoid clicks */
+  const fin = Math.min(n >> 1, Math.round(AUDIO_RATE * (V.fade ? 0.5 : 0.01)));
+  const fout = Math.min(n >> 1, Math.round(AUDIO_RATE * (V.fade ? 1.5 : 0.03)));
+  for (let i = 0; i < fin; i++) { const g = i / fin; L[i] *= g; R[i] *= g; }
+  for (let i = 0; i < fout; i++) { const g = i / fout; L[n - 1 - i] *= g; R[n - 1 - i] *= g; }
+  /* keep the sum below full scale */
+  let peak = 0; for (let i = 0; i < n; i++) { const a = Math.max(Math.abs(L[i]), Math.abs(R[i])); if (a > peak) peak = a; }
+  if (peak > 0.98) { const k = 0.98 / peak; for (let i = 0; i < n; i++) { L[i] *= k; R[i] *= k; } }
+  return { mix: { L, R }, parts, notes };
+}
+
+/* ---------- AAC: the browser's encoder when it has one, otherwise the built-in one ---------- */
+async function encodeAacWebCodecs(L, R) {
+  const n = L.length, samples = []; let desc = null, err = null;
+  const encoder = new AudioEncoder({
+    output: (chunk, meta) => {
+      if (meta && meta.decoderConfig && meta.decoderConfig.description) desc = new Uint8Array(meta.decoderConfig.description.slice ? meta.decoderConfig.description.slice(0) : meta.decoderConfig.description);
+      const d = new Uint8Array(chunk.byteLength); chunk.copyTo(d); samples.push({ data: d, duration: 1024 });
+    },
+    error: e => { err = e; },
+  });
+  encoder.configure({ codec: 'mp4a.40.2', sampleRate: AUDIO_RATE, numberOfChannels: 2, bitrate: AUDIO_KBPS, aac: { format: 'aac' } });
+  for (let at = 0; at < n; at += AUDIO_RATE) {
+    const cnt = Math.min(AUDIO_RATE, n - at), data = new Float32Array(cnt * 2);
+    data.set(L.subarray(at, at + cnt), 0); data.set(R.subarray(at, at + cnt), cnt);
+    const ad = new AudioData({ format: 'f32-planar', sampleRate: AUDIO_RATE, numberOfFrames: cnt, numberOfChannels: 2, timestamp: Math.round(at / AUDIO_RATE * 1e6), data });
+    encoder.encode(ad); ad.close();
+    if (err) throw err;
+  }
+  await encoder.flush(); encoder.close();
+  if (err) throw err;
+  if (!samples.length) throw new Error('the AAC encoder produced no output');
+  return { sampleRate: AUDIO_RATE, channels: 2, samples, description: desc || Bin.aacAudioSpecificConfig(AUDIO_RATE, 2), avgBitrate: AUDIO_KBPS, maxBitrate: AUDIO_KBPS };
+}
+async function encodeAacBuiltin(L, R, onProgress) {
+  const wk = libWorker();
+  if (wk) {
+    try {
+      return await new Promise((res, rej) => {
+        const id = ++_workSeq; _workJobs.set(id, { res, rej, onProgress });
+        wk.postMessage({ id, type: 'aac', L, R, rate: AUDIO_RATE, bitrate: AUDIO_KBPS });
+      });
+    } catch (e) { /* fall back to the main thread */ }
+  }
+  return Bin.encodeAacLc([L, R], AUDIO_RATE, AUDIO_KBPS, onProgress);
+}
+async function encodeAudioForExport(S, len, loop, enc, onProgress) {
+  const { mix, parts, notes } = await buildAudioMix(S, len, loop);
+  if (!mix) return { audio: null, parts, notes, via: '' };
+  if (enc.aac) {
+    try { return { audio: await encodeAacWebCodecs(mix.L, mix.R), parts, notes, via: 'browser' }; }
+    catch (e) { notes.push('browser AAC encoder failed, used the built-in one'); }
+  }
+  return { audio: await encodeAacBuiltin(mix.L.slice(), mix.R.slice(), onProgress), parts, notes, via: 'built-in' };
+}
+/* a one-line description of what the exported preview's audio will contain */
+function audioPlan(S = cur()) {
+  const V = project.video, lead = shownVideos(S)[0], music = mediaById(V.music), parts = [], warn = [];
+  if (V.audio && V.videoVol > 0 && lead) {
+    if (lead.hasAudio === 'none') warn.push(`"${lead.name}" has no audio track`);
+    else if (lead.hasAudio === 'silent') warn.push(`"${lead.name}" has a silent audio track`);
+    else parts.push('video sound' + (lead.hasAudio ? '' : ' (checking…)'));
+  }
+  if (music && V.musicVol > 0) parts.push(`soundtrack "${music.name}"`);
+  return { parts, warn, any: parts.length > 0 };
+}
+
+/* =====================================================================
    Export: flattened RGB PNG / JPEG, single or zipped set
    ===================================================================== */
 /* PNG encoding runs in a worker built from this page's own library source, so the UI stays responsive */
-let _pngWorker = null, _pngJobs = new Map(), _pngSeq = 0;
-function pngWorker() {
-  if (_pngWorker !== null) return _pngWorker;
+/* PNG and AAC encoding run in a worker built from this page's own library block, so the UI stays responsive */
+let _libWorker = null, _workJobs = new Map(), _workSeq = 0;
+function libWorker() {
+  if (_libWorker !== null) return _libWorker;
   try {
     const src = document.scripts[document.scripts.length - 1].textContent;
     const lib = src.slice(src.indexOf('/*LIB-START*/'), src.indexOf('/*LIB-END*/'));
-    const code = lib + `\nself.onmessage=async e=>{const {id,rgba,w,h}=e.data;try{const png=await Bin.encodePngRgb(rgba,w,h);self.postMessage({id,png},[png.buffer]);}catch(err){self.postMessage({id,error:String(err)});}};`;
-    _pngWorker = new Worker(URL.createObjectURL(new Blob([code], { type: 'text/javascript' })));
-    _pngWorker.onmessage = e => { const j = _pngJobs.get(e.data.id); if (!j) return; _pngJobs.delete(e.data.id); e.data.error ? j.rej(new Error(e.data.error)) : j.res(e.data.png); };
-    _pngWorker.onerror = () => { for (const j of _pngJobs.values()) j.rej(new Error('worker')); _pngJobs.clear(); _pngWorker = false; };
-  } catch (e) { _pngWorker = false; }
-  return _pngWorker;
+    const code = lib + `
+self.onmessage = async e => {
+  const m = e.data;
+  try {
+    if (m.type === 'aac') {
+      const a = await Bin.encodeAacLc([m.L, m.R], m.rate, m.bitrate, p => self.postMessage({ id: m.id, progress: p }));
+      self.postMessage({ id: m.id, result: a }, a.samples.map(x => x.data.buffer));
+    } else {
+      const png = await Bin.encodePngRgb(m.rgba, m.w, m.h);
+      self.postMessage({ id: m.id, result: png }, [png.buffer]);
+    }
+  } catch (err) { self.postMessage({ id: m.id, error: String(err) }); }
+};`;
+    _libWorker = new Worker(URL.createObjectURL(new Blob([code], { type: 'text/javascript' })));
+    _libWorker.onmessage = e => {
+      const j = _workJobs.get(e.data.id); if (!j) return;
+      if (e.data.progress != null) { if (j.onProgress) j.onProgress(e.data.progress); return; }
+      _workJobs.delete(e.data.id); e.data.error ? j.rej(new Error(e.data.error)) : j.res(e.data.result);
+    };
+    _libWorker.onerror = () => { for (const j of _workJobs.values()) j.rej(new Error('worker')); _workJobs.clear(); _libWorker = false; };
+  } catch (e) { _libWorker = false; }
+  return _libWorker;
 }
 async function encodePng(rgba, w, h) {
-  const wk = pngWorker();
+  const wk = libWorker();
   if (wk) {
     try {
-      return await new Promise((res, rej) => { const id = ++_pngSeq; _pngJobs.set(id, { res, rej }); wk.postMessage({ id, rgba, w, h }, [rgba.buffer]); });
+      return await new Promise((res, rej) => { const id = ++_workSeq; _workJobs.set(id, { res, rej }); wk.postMessage({ id, type: 'png', rgba, w, h }, [rgba.buffer]); });
     } catch (e) { /* fall through to the main thread */ }
   }
   return Bin.encodePngRgb(rgba, w, h);
@@ -2129,14 +2530,14 @@ async function probeEncoders() {
       try { const r = await VideoEncoder.isConfigSupported({ codec, width: 886, height: 1920, bitrate: 10e6, framerate: 30, avc: { format: 'avc' } }); if (r.supported) { out.h264 = codec; break; } } catch (e) {}
     }
     if (typeof AudioEncoder !== 'undefined') {
-      try { const r = await AudioEncoder.isConfigSupported({ codec: 'mp4a.40.2', sampleRate: 48000, numberOfChannels: 2, bitrate: 160000 }); out.aac = !!r.supported; } catch (e) {}
+      try { const r = await AudioEncoder.isConfigSupported({ codec: 'mp4a.40.2', sampleRate: AUDIO_RATE, numberOfChannels: 2, bitrate: AUDIO_KBPS }); out.aac = !!r.supported; } catch (e) {}
     }
   }
   ui.encoders = out; return out;
 }
 function encoderSummary(enc) {
-  if (enc.h264) return { kind: 'ok', text: enc.aac ? 'Encoder: H.264 + AAC via WebCodecs — frame-exact 30 fps, correct duration, upload-ready MP4. No ffmpeg needed.'
-                                                     : 'Encoder: H.264 via WebCodecs (upload-ready MP4). AAC audio is not available in this browser, so the preview will be silent — use Chrome or Safari on macOS for audio.' };
+  if (enc.h264) return { kind: 'ok', text: 'Encoder: H.264 at 11 Mbps + stereo AAC at 256 kbps (' + (enc.aac ? 'browser AAC encoder' : 'built-in AAC encoder')
+                                        + ') — frame-exact 30 fps, correct duration, upload-ready MP4. No ffmpeg needed.' };
   if (enc.recorder) return { kind: 'warn', text: 'Encoder: screen recording (MediaRecorder). Timing is best-effort and the file needs the ffmpeg fix-up below before App Store Connect accepts it. Chrome or Safari on macOS can export directly.' };
   return { kind: 'err', text: 'This browser cannot encode video. Use Chrome, Edge or Safari.' };
 }
@@ -2157,6 +2558,11 @@ function syncVideoUI() {
   $('previewBtn').disabled = !has || ui.busy; $('previewBtn').dataset.lock = has ? '0' : '1';
   $('playBtn').disabled = !has; $('restartBtn').disabled = !has;
   const anyPaused = vids.some(v => v.el.paused); $('playBtn').textContent = anyPaused ? '▶ Play' : '❚❚ Pause';
+  const plan = audioPlan(S), an = $('audioNote');
+  if (!has && !mediaById(project.video.music)) { an.textContent = 'Add a soundtrack (MP3, M4A, WAV…) to put music under the preview.'; an.className = 'note'; }
+  else if (plan.any) { an.textContent = 'Preview audio: ' + plan.parts.join(' + ') + ' → stereo AAC, 256 kbps, 48 kHz.' + (plan.warn.length ? ' Note: ' + plan.warn.join('; ') + '.' : ''); an.className = 'note ok'; }
+  else { an.textContent = 'The preview will be silent' + (plan.warn.length ? ': ' + plan.warn.join('; ') : '') + '. Add a soundtrack or turn on the video’s own sound.'; an.className = 'note warn'; }
+  applySound();
   probeEncoders().then(enc => { const s = encoderSummary(enc); const el = $('encoderNote'); el.textContent = s.text; el.className = 'note ' + (s.kind === 'ok' ? 'ok' : s.kind); $('ffmpegBtn').style.display = enc.h264 ? 'none' : ''; });
 }
 $('playBtn').onclick = () => {
@@ -2164,10 +2570,38 @@ $('playBtn').onclick = () => {
   vids.forEach(v => anyPaused ? v.el.play().catch(() => {}) : v.el.pause());
   syncVideoUI(); ensureLoop(); render();
 };
-$('restartBtn').onclick = () => { shownVideos().forEach(v => { v.el.currentTime = 0; v.el.play().catch(() => {}); }); syncVideoUI(); ensureLoop(); };
+$('restartBtn').onclick = () => {
+  shownVideos().forEach(v => { v.el.currentTime = 0; v.el.play().catch(() => {}); });
+  const music = mediaById(project.video.music); if (music && music.el) music.el.currentTime = 0;
+  syncVideoUI(); ensureLoop();
+};
+$('soundBtn').onclick = () => {
+  ui.sound = !ui.sound;
+  if (ui.sound) shownVideos().forEach(v => v.el.play().catch(() => {}));
+  syncVideoUI();
+};
+/* soundtrack + mix controls */
+function syncAudioControls() {
+  const V = project.video, sel = $('musicSel'); sel.innerHTML = '';
+  const none = document.createElement('option'); none.value = ''; none.textContent = 'No soundtrack'; sel.append(none);
+  for (const m of media) if (m.kind === 'audio') { const o = document.createElement('option'); o.value = m.id; o.textContent = `♪ ${m.name} (${Math.round(m.duration)} s)`; sel.append(o); }
+  sel.value = V.music || '';
+  $('musicVol').value = Math.round(V.musicVol * 100); $('musicVolVal').textContent = Math.round(V.musicVol * 100) + '%';
+  $('videoVol').value = Math.round(V.videoVol * 100); $('videoVolVal').textContent = Math.round(V.videoVol * 100) + '%';
+  $('recAudio').checked = V.audio; $('recFade').checked = V.fade;
+  $('musicVol').disabled = !V.music; $('videoVol').disabled = !V.audio;
+}
+$('musicSel').oninput = e => { touch(); project.video.music = e.target.value || null; refreshThumbs(); syncAudioControls(); syncVideoUI(); };
+$('musicAdd').onclick = () => $('audioInput').click();
+$('audioInput').onchange = e => { addFiles(e.target.files); e.target.value = ''; };
+$('musicVol').oninput = e => { project.video.musicVol = +e.target.value / 100; $('musicVolVal').textContent = e.target.value + '%'; applySound(); autosave(); };
+$('videoVol').oninput = e => { project.video.videoVol = +e.target.value / 100; $('videoVolVal').textContent = e.target.value + '%'; applySound(); autosave(); };
+$('recFade').oninput = e => { project.video.fade = e.target.checked; autosave(); };
+$('musicVol').addEventListener('dblclick', () => { $('musicVol').value = 80; $('musicVol').dispatchEvent(new Event('input')); });
+$('videoVol').addEventListener('dblclick', () => { $('videoVol').value = 100; $('videoVol').dispatchEvent(new Event('input')); });
 $('ffmpegBtn').onclick = () => {
   const dev = curDev(); const w = dev.video ? dev.w : 886, h = dev.video ? dev.h : 1920;
-  const cmd = `ffmpeg -i input.mp4 -vf "scale=${w}:${h},fps=30" -c:v libx264 -profile:v high -pix_fmt yuv420p -movflags +faststart -c:a aac -b:a 128k output.mov`;
+  const cmd = `ffmpeg -i input.mp4 -vf "scale=${w}:${h},fps=30" -c:v libx264 -profile:v high -pix_fmt yuv420p -movflags +faststart -c:a aac -b:a 256k -ar 48000 -ac 2 output.mov`;
   navigator.clipboard.writeText(cmd).then(
     () => { $('ffmpegBtn').textContent = '✓ Copied to clipboard'; setTimeout(() => $('ffmpegBtn').textContent = '⧉ Copy ffmpeg fix-up command', 1800); },
     () => prompt('Copy this command:', cmd));
@@ -2179,7 +2613,7 @@ $('ffmpegBtn').onclick = () => {
   for (const d of DEVICES) if (d.video) { const o = document.createElement('option'); o.value = d.id; o.textContent = d.label.replace('🎬 ', ''); sel.append(o); }
   $('pvLen').oninput = e => { project.video.len = clamp(Math.round(+e.target.value || 30), 15, 30); $('recLen').value = project.video.len; syncVideoUI(); refreshPreviewWarn(); };
   $('pvLoop').oninput = e => { project.video.loop = e.target.checked; $('recLoop').checked = e.target.checked; syncVideoUI(); refreshPreviewWarn(); };
-  $('pvAudio').oninput = e => { project.video.audio = e.target.checked; $('recAudio').checked = e.target.checked; };
+  $('pvAudio').oninput = e => { project.video.audio = e.target.checked; syncAudioControls(); syncVideoUI(); refreshPreviewWarn(); };
   $('pvFill').oninput = e => { touch(); cur().fillMode = e.target.checked; activePhone = 0; syncAll(); render(); refreshPreviewWarn(); };
   sel.oninput = refreshPreviewWarn;
 })();
@@ -2191,6 +2625,10 @@ function refreshPreviewWarn() {
   if (!cur().fillMode) warns.push('Device frame is on. Apple rejects previews that show hardware; enable Fill frame unless this render is for your website.');
   const el = $('pvWarn'); el.textContent = warns.join(' '); el.className = 'note ' + (warns.length ? 'warn' : 'ok');
   if (!warns.length) el.textContent = `Exports ${final.toFixed(0)} s at ${DEV[$('pvSize').value].w}×${DEV[$('pvSize').value].h}, 30 fps.`;
+  const plan = audioPlan(), au = $('pvAudioNote');
+  au.textContent = plan.any ? 'Audio: ' + plan.parts.join(' + ') + ' → stereo AAC 256 kbps.' + (plan.warn.length ? ' (' + plan.warn.join('; ') + ')' : '')
+                            : 'No audio: ' + (plan.warn.length ? plan.warn.join('; ') + '. ' : '') + 'Add a soundtrack in the App preview section to include music.';
+  au.className = 'note ' + (plan.any ? 'ok' : 'warn');
 }
 async function openPreviewDialog() {
   if (ui.busy) return;
@@ -2222,7 +2660,8 @@ function seekTo(v, t) {
     const to = setTimeout(fin, 2500); v.addEventListener('seeked', fin); v.currentTime = t;
   });
 }
-function bitrateFor(w, h) { return clamp(Math.round(w * h * 30 * 0.18), 6e6, 24e6); }
+/* Apple's target for H.264 previews is 10–12 Mbps */
+const VIDEO_BPS = 11_000_000;
 
 async function exportPreviewWebCodecs(dev, enc) {
   const S = cur(), vids = shownVideos(S), fps = 30, W = dev.w, H = dev.h;
@@ -2230,7 +2669,7 @@ async function exportPreviewWebCodecs(dev, enc) {
   const loop = project.video.loop, len = loop ? project.video.len : Math.min(project.video.len, longest);
   const total = Math.max(1, Math.round(len * fps));
   const wasPlaying = vids.map(v => !v.el.paused);
-  setBusy(true); ensureLoop();
+  setBusy(true); ensureLoop(); applySound();
   vids.forEach(v => { v.el.pause(); v.el.loop = false; });
   const off = document.createElement('canvas'); off.width = W; off.height = H;
   const oc = off.getContext('2d'); oc.imageSmoothingQuality = 'high';
@@ -2244,7 +2683,7 @@ async function exportPreviewWebCodecs(dev, enc) {
     error: e => { encErr = e; },
   });
   try {
-    encoder.configure({ codec: enc.h264, width: W, height: H, bitrate: bitrateFor(W, H), framerate: fps, avc: { format: 'avc' }, latencyMode: 'quality' });
+    encoder.configure({ codec: enc.h264, width: W, height: H, bitrate: VIDEO_BPS, bitrateMode: 'variable', framerate: fps, avc: { format: 'avc' }, latencyMode: 'quality' });
     const t0 = performance.now();
     for (let n = 0; n < total; n++) {
       if (encErr) throw encErr;
@@ -2264,24 +2703,19 @@ async function exportPreviewWebCodecs(dev, enc) {
     if (encErr) throw encErr;
     if (!desc) throw new Error('The encoder did not provide an H.264 configuration record.');
 
-    /* audio: decode the lead video's track, resample to 48 kHz stereo, encode AAC */
-    let audio = null, audioNote = '';
-    const lead = vids[0];
-    if (project.video.audio && lead.blob) {
-      if (!enc.aac) audioNote = ' Audio skipped: this browser cannot encode AAC.';
-      else {
-        setProgress(0.92, 'Encoding audio…');
-        try { audio = await encodeAudioAAC(lead.blob, len, loop); if (!audio) audioNote = ' The source video has no audio track.'; }
-        catch (e) { audioNote = ' Audio skipped (' + (e.message || 'decode failed') + ').'; }
-      }
-    }
+    /* audio: video sound + soundtrack, mixed at 48 kHz stereo, encoded as 256 kbps AAC */
+    setProgress(0.9, 'Mixing audio…');
+    const au = await encodeAudioForExport(S, len, loop, enc, p => setProgress(0.9 + p * 0.07, `Encoding audio ${Math.round(p * 100)}%`));
+    const audio = au.audio;
+    const audioNote = audio ? ` Audio: ${au.parts.join(' + ')}.` + (au.notes.length ? ` (${au.notes.join('; ')})` : '')
+                            : ' No audio' + (au.notes.length ? ': ' + au.notes.join('; ') : '') + '.';
     setProgress(0.97, 'Writing MP4…'); await sleep(0);
     const mp4 = Bin.muxMp4({ video: { width: W, height: H, timescale: fps * 1000, samples, description: desc }, audio });
     const blob = new Blob([mp4], { type: 'video/mp4' });
     const name = `${slug(project.name, 'app')}-preview-${W}x${H}.mp4`;
     downloadBlob(blob, name);
     const mb = blob.size / 1e6;
-    toast(`Saved ${name} — ${len.toFixed(0)} s, ${W}×${H}, 30 fps, H.264${audio ? ' + AAC' : ''}, ${mb.toFixed(1)} MB. Ready for App Store Connect.${audioNote}`, mb > 500 ? 'warn' : 'ok', 9000);
+    toast(`Saved ${name} — ${len.toFixed(0)} s, ${W}×${H}, 30 fps, H.264${audio ? ' + AAC 256 kbps' : ''}, ${mb.toFixed(1)} MB. Ready for App Store Connect.${audioNote}`, mb > 500 ? 'warn' : (audio ? 'ok' : 'warn'), 10000);
     if (mb > 500) toast('Over Apple’s 500 MB limit — shorten the preview.', 'err', 8000);
   } catch (e) {
     try { encoder.close(); } catch (x) {}
@@ -2290,43 +2724,7 @@ async function exportPreviewWebCodecs(dev, enc) {
   vids.forEach((v, i) => { v.el.loop = true; if (wasPlaying[i]) v.el.play().catch(() => {}); });
   setProgress(null); setBusy(false); ensureLoop(); render();
 }
-async function encodeAudioAAC(blob, len, loop) {
-  const rate = 48000, ch = 2;
-  const ab = await blob.arrayBuffer();
-  const ac = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: rate });
-  let buf;
-  try { buf = await ac.decodeAudioData(ab); } catch (e) { ac.close(); return null; }
-  ac.close();
-  if (!buf || !buf.length) return null;
-  const srcL = buf.getChannelData(0), srcR = buf.numberOfChannels > 1 ? buf.getChannelData(1) : srcL;
-  const n = Math.round(len * rate), L = new Float32Array(n), R = new Float32Array(n), sl = buf.length;
-  for (let i = 0; i < n; i++) { const j = loop ? i % sl : i; if (j < sl) { L[i] = srcL[j]; R[i] = srcR[j]; } }
-  /* short fade in/out avoids clicks at loop points and the end */
-  const fade = Math.min(Math.round(rate * 0.03), n >> 1);
-  for (let i = 0; i < fade; i++) { const g = i / fade; L[i] *= g; R[i] *= g; L[n - 1 - i] *= g; R[n - 1 - i] *= g; }
-  const samples = []; let desc = null, err = null;
-  const encoder = new AudioEncoder({
-    output: (chunk, meta) => {
-      if (meta && meta.decoderConfig && meta.decoderConfig.description) desc = new Uint8Array(meta.decoderConfig.description.slice ? meta.decoderConfig.description.slice(0) : meta.decoderConfig.description);
-      const d = new Uint8Array(chunk.byteLength); chunk.copyTo(d); samples.push({ data: d, duration: 1024 });
-    },
-    error: e => { err = e; },
-  });
-  encoder.configure({ codec: 'mp4a.40.2', sampleRate: rate, numberOfChannels: ch, bitrate: 160000, aac: { format: 'aac' } });
-  const block = rate; // 1 s per AudioData
-  for (let at = 0; at < n; at += block) {
-    const cnt = Math.min(block, n - at), data = new Float32Array(cnt * ch);
-    data.set(L.subarray(at, at + cnt), 0); data.set(R.subarray(at, at + cnt), cnt);
-    const ad = new AudioData({ format: 'f32-planar', sampleRate: rate, numberOfFrames: cnt, numberOfChannels: ch, timestamp: Math.round(at / rate * 1e6), data });
-    encoder.encode(ad); ad.close();
-    if (err) throw err;
-  }
-  await encoder.flush(); encoder.close();
-  if (err) throw err;
-  if (!samples.length) return null;
-  return { sampleRate: rate, channels: ch, samples, description: desc || Bin.aacAudioSpecificConfig(rate, ch), avgBitrate: 160000, maxBitrate: 192000 };
-}
-
+/* (the old video-only AAC path lived here; audio now comes from encodeAudioForExport) */
 function pickMime(withAudio) {
   const want = withAudio
     ? ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm']
@@ -2337,31 +2735,42 @@ async function exportPreviewRecorder(dev) {
   const S = cur(), vids = shownVideos(S); if (!vids.length) return;
   const fps = 30, longest = Math.max(...vids.map(v => v.el.duration || 0));
   const loop = project.video.loop, dur = loop ? project.video.len : Math.min(project.video.len, longest);
-  const lead = vids[0].el, wasMuted = lead.muted;
-  vids.forEach(v => { v.el.currentTime = 0; v.el.loop = loop; });
-  if (project.video.audio) lead.muted = false;
+  /* the same video-sound + soundtrack mix as the WebCodecs path, played into the recording */
+  setProgress(0, 'Mixing audio…');
+  const { mix, parts, notes } = await buildAudioMix(S, dur, loop);
+  let actx = null, src = null, audioTracks = [];
+  if (mix) {
+    try {
+      actx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: AUDIO_RATE });
+      const buf = actx.createBuffer(2, mix.L.length, AUDIO_RATE); buf.copyToChannel(mix.L, 0); buf.copyToChannel(mix.R, 1);
+      const dest = actx.createMediaStreamDestination(); src = actx.createBufferSource(); src.buffer = buf; src.connect(dest);
+      audioTracks = dest.stream.getAudioTracks();
+    } catch (e) { notes.push('this browser could not record the audio'); }
+  }
+  vids.forEach(v => { v.el.currentTime = 0; v.el.loop = loop; v.el.muted = true; });
   await sleep(120);
   await Promise.all(vids.map(v => v.el.play().catch(() => {})));
+  if (actx && actx.state === 'suspended') await actx.resume().catch(() => {});
   const stream = canvas.captureStream(fps);
-  let audioTracks = [];
-  if (project.video.audio) { try { const cs = lead.captureStream ? lead.captureStream() : lead.mozCaptureStream ? lead.mozCaptureStream() : null; if (cs) audioTracks = cs.getAudioTracks(); } catch (e) {} }
   const mixed = new MediaStream([...stream.getVideoTracks(), ...audioTracks]);
   const mime = pickMime(audioTracks.length > 0), chunks = [];
-  const rec = new MediaRecorder(mixed, mime ? { mimeType: mime, videoBitsPerSecond: bitrateFor(dev.w, dev.h) } : undefined);
+  const rec = new MediaRecorder(mixed, mime ? { mimeType: mime, videoBitsPerSecond: VIDEO_BPS, audioBitsPerSecond: AUDIO_KBPS } : undefined);
   rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
   const done = new Promise(res => { rec.onstop = res; });
   ui.recorder = rec; setBusy(true); ensureLoop();
   const t0 = performance.now(); const prog = setInterval(() => setProgress(Math.min(1, (performance.now() - t0) / 1000 / dur), `Recording ${Math.min(dur, (performance.now() - t0) / 1000).toFixed(0)}/${dur.toFixed(0)} s`), 250);
-  rec.start(200);
+  rec.start(200); if (src) src.start();
   setTimeout(() => { if (rec.state !== 'inactive') rec.stop(); }, dur * 1000 + 150);
   await done; clearInterval(prog);
+  if (actx) actx.close().catch(() => {});
   const type = (chunks[0] && chunks[0].type) || mime || 'video/webm', ext = type.includes('mp4') ? 'mp4' : 'webm';
   const blob = new Blob(chunks, { type });
   downloadBlob(blob, `${slug(project.name, 'app')}-preview-${dev.w}x${dev.h}.${ext}`);
-  ui.recorder = null; lead.muted = wasMuted;
+  ui.recorder = null;
   vids.forEach(v => { v.el.loop = true; v.el.play().catch(() => {}); });
-  setProgress(null); setBusy(false); ensureLoop();
-  toast(`Saved .${ext} (${(blob.size / 1e6).toFixed(1)} MB). Run the ffmpeg fix-up command before uploading — browser recordings carry broken duration metadata.`, 'warn', 9000);
+  setProgress(null); setBusy(false); ensureLoop(); applySound();
+  const audioMsg = mix && audioTracks.length ? ` Audio: ${parts.join(' + ')}.` : ' No audio' + (notes.length ? ': ' + notes.join('; ') : '') + '.';
+  toast(`Saved .${ext} (${(blob.size / 1e6).toFixed(1)} MB).${audioMsg} Run the ffmpeg fix-up command before uploading — it converts the audio to 256 kbps AAC and fixes the duration metadata.`, 'warn', 10000);
   $('ffmpegBtn').style.display = '';
 };
 
@@ -2399,6 +2808,10 @@ async function openChecklist() {
       const final = project.video.loop ? project.video.len : Math.min(project.video.len, longest);
       add(final >= 15 && final <= 30 ? 'ok' : 'err', `Slide ${i + 1} preview length: ${final.toFixed(1)} s`, 'App Store Connect requires 15–30 seconds, H.264, 30 fps, up to 500 MB.');
       add(s2.fillMode ? 'ok' : 'warn', s2.fillMode ? `Slide ${i + 1} preview is full-frame (no device hardware)` : `Slide ${i + 1} shows a device frame around the video`, 'Apple requires previews to be captured on device without hardware frames. Keep framed renders for your website.');
+      const plan = audioPlan(s2);
+      add(plan.any ? 'ok' : 'warn', plan.any ? `Slide ${i + 1} preview audio: ${plan.parts.join(' + ')}` : `Slide ${i + 1} preview will be silent`,
+          plan.any ? 'Mixed and encoded as stereo AAC at 256 kbps, 48 kHz — Apple’s spec for H.264 previews.' + (plan.warn.length ? ' Note: ' + plan.warn.join('; ') + '.' : '')
+                   : (plan.warn.length ? plan.warn.join('; ') + '. ' : '') + 'Silent previews are allowed, but most apps add music: drop an MP3/M4A into the media library.');
     }
   } else add('ok', 'No app preview in this project', 'Previews are optional (up to 3 per device size). Add a screen recording to make one.');
   add('ok', 'Content reminders', 'Show the app in use, no pricing or “free” claims that can change, no other platforms’ devices, and keep status bars clean (full battery, no carrier). Localize captions per storefront if you ship multiple languages.');
@@ -2483,6 +2896,7 @@ if (location.protocol === 'http:' || location.protocol === 'https:') $('offlineB
   sanitizeProject();
   syncAll(); refreshStrip(true); render();
   probeEncoders().then(syncVideoUI);
+  for (const m of media) if (m.kind === 'video') probeAudio(m);
 })();
 </script>
 </body>
