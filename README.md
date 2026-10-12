@@ -45,7 +45,10 @@ standalone app (web manifest included).
   and iPad landscape.
 - "Export set" renders every slide at every size you tick into one `.zip`,
   either one folder per device size or the flat per-locale layout that
-  `fastlane deliver` expects (`en-US/01_iPhone-6.9_headline.png`).
+  `fastlane deliver` expects (`en-US/01_iPhone-6.9_headline.png`). Screenshots
+  in the library that are not on any slide yet get a slide of their own first
+  (untick it in the dialog to export the strip as is), so the zip holds every
+  screenshot you added.
 
 **App previews**
 - Exact preview sizes: 886×1920 and 1920×886 (iPhone), 1080×1920 (5.5″),
@@ -91,8 +94,20 @@ model at native resolution and checks these numbers to the pixel.
 - **Devices**: up to 3 per slide. Exact iPhone 17 Pro / Pro Max frames (see
   below) in silver, Cosmic Orange, Deep Blue, titanium, black or gold, with
   layered shadows, glare and glow.
-- **Backgrounds**: linear, radial, aurora and mesh gradients, solid colour,
-  backdrop shapes (circles, rings, dots, grid, waves), film grain, vignette.
+- **Complete sets**: 12 set templates (Clean Store, Midnight Spotlight,
+  Gradient Pop, Aurora Glass, Pastel Studio, Bold Contrast, Editorial Serif,
+  Neon Dev, Sunset Warm, Ocean Depth, Duotone Split, Playful Confetti). One
+  click builds a whole App Store set: every screenshot in the library gets a
+  slide, in order, with a layout that changes slide to slide and backgrounds
+  that drift in hue or alternate across the set. The cards preview the set with
+  your own screenshots. "Restyle my slides" applies the look to what you already
+  have and keeps your captions.
+- **Backgrounds**: a gallery of 24 live-rendered looks, plus ten styles
+  (linear, radial, three-colour blend, sweep, aurora, mesh, spotlight, diagonal
+  split, soft stripes, solid) with a third accent colour, and backdrop shapes
+  (circles, rings, bokeh, organic blob, squircles, confetti, dots, grid,
+  diagonal lines, waves), film grain and vignette. Scattered shapes are seeded,
+  so the export matches the preview at every size.
 - **Text**: separate font, weight, size, colour, italic, caps and letter spacing
   for headline and subheadline (22 font stacks), free positioning, alignment,
   text width, line height, shadow, plus a badge pill and a star-rating row.

@@ -39,7 +39,7 @@ const st = await page.evaluate(() => ({ phones: cur().phones.map(p => !!p.media)
 check(st.phones[0] && st.media.join() === 'image,image,video', 'first image assigned to phone 1 · ' + JSON.stringify(st));
 
 /* 2. template + slides */
-await page.evaluate(() => document.querySelector('section[data-sec="templates"] h2').click());
+await page.evaluate(() => openSection('templates'));
 await page.click('#templateGrid button:nth-child(5)');   // Trio Fan: 3 phones
 await page.waitForTimeout(200);
 const trio = await page.evaluate(() => ({ n: cur().phones.length, media: cur().phones.map(p => p.media && mediaById(p.media).kind), head: cur().headline }));
@@ -240,6 +240,86 @@ const silentNote = await page.evaluate(() => $('pvAudioNote').textContent);
 check(/No audio: "noaudio" has no audio track/.test(silentNote), 'dialog explains a silent preview · ' + silentNote);
 await page.keyboard.press('Escape');
 await page.evaluate(() => { project.video.audio = true; const v = media.find(m => m.name === 'test'); cur().phones[0].media = v.id; project.video.music = media.find(m => m.kind === 'audio').id; syncAll(); render(); });
+
+/* 13. complete-set templates: cards, dialog, build (every screenshot used, in order), restyle (captions kept) */
+await page.evaluate(() => { project.preset = 'ip69'; syncAll(); render(); openSection('templates'); refreshSetCards(); });
+const cards = await page.evaluate(() => ({ n: document.querySelectorAll('#setGrid .setcard').length, canvases: document.querySelectorAll('#setGrid .setcard canvas').length, templates: SET_TEMPLATES.length }));
+check(cards.n === cards.templates && cards.canvases === cards.n * 3, 'a card with a three-slide preview per set template · ' + JSON.stringify(cards));
+await page.click('#setGrid .setcard:nth-child(2)'); await page.waitForSelector('#setDlg[open]');
+const dlg = await page.evaluate(() => ({ title: $('setTitle').textContent, previews: document.querySelectorAll('#setPreview canvas').length, plan: $('setPlan').textContent, shots: screenshots().length }));
+check(dlg.title === 'Midnight Spotlight' && dlg.previews === dlg.shots && /every screenshot ends up in the set/.test(dlg.plan), 'set dialog previews one slide per screenshot · ' + JSON.stringify(dlg));
+await page.click('#setBuild'); await page.waitForTimeout(300);
+const built = await page.evaluate(() => ({
+  n: project.slides.length, active: project.active, strip: document.querySelectorAll('#slideStrip .slide').length,
+  order: project.slides.map(s => s.phones.map(p => mediaById(p.media)?.name).join('+')), lib: screenshots().map(m => m.name),
+  bg: project.slides.map(s => s.bgType + ' ' + s.bg1), heads: project.slides.map(s => s.headline), sample: project.slides.every(s => s.sampleHead),
+}));
+check(built.n === 2 && built.strip === 2 && built.active === 0, 'Build set makes one slide per screenshot · ' + JSON.stringify(built));
+check(built.order.join() === built.lib.join(), 'screenshots land on slides in library order · ' + built.order.join(' | '));
+check(built.bg[0] !== built.bg[1] && built.bg.every(b => b.startsWith('spotlight')), 'per-slide hue variation applied · ' + built.bg.join(' | '));
+check(built.heads.every(Boolean) && built.sample, 'sample captions set and flagged as samples');
+// restyle keeps a real caption and the media
+await page.evaluate(() => { selectSlide(1); });
+await page.fill('#headline', 'My real caption'); await page.waitForTimeout(100);
+await page.click('#setGrid .setcard:nth-child(7)'); await page.waitForSelector('#setDlg[open]');
+await page.click('#setRestyle'); await page.waitForTimeout(300);
+const restyled = await page.evaluate(() => ({ n: project.slides.length, head1: project.slides[1].headline, sample1: project.slides[1].sampleHead, head0: project.slides[0].sampleHead, bg: project.slides[0].bgType, font: project.slides[0].head.font, media: project.slides.map(s => mediaById(s.phones[0].media)?.name) }));
+check(restyled.n === 2 && restyled.head1 === 'My real caption' && !restyled.sample1 && restyled.head0 && restyled.bg === 'horizon' && restyled.font === 10 && restyled.media.join() === built.lib.join(), 'Restyle keeps slides, media and real captions · ' + JSON.stringify(restyled));
+// undo brings the previous set back
+await page.evaluate(() => document.activeElement.blur());
+await page.keyboard.press('Control+z'); await page.waitForTimeout(100);
+check((await page.evaluate(() => project.slides[0].bgType)) === 'spotlight', 'undo reverts a restyle');
+// with no screenshots the set builds its full layout list with placeholders
+const empty = await page.evaluate(() => { const saved = media; media = media.filter(m => m.kind !== 'image'); const p = planSet(SET_TEMPLATES[0]); media = saved; return { n: p.slides.length, specs: SET_TEMPLATES[0].slides.length, placeholders: p.slides.every(s => s.phones.every(ph => !ph.media)) }; });
+check(empty.n === empty.specs && empty.placeholders, 'without screenshots a set builds every layout with placeholders · ' + JSON.stringify(empty));
+
+/* 14. background engine: every style and shape renders, looks apply and are highlighted */
+const bgErrs = await page.evaluate(() => {
+  const S = cur(), errs = [];
+  for (const t of BG_TYPES) for (const sh of SHAPES) { S.bgType = t; S.shapes = sh; S.vignette = 0.2; try { render(); } catch (e) { errs.push(t + '/' + sh + ': ' + e.message); } }
+  S.vignette = 0; return errs;
+});
+check(bgErrs.length === 0, 'all background styles × shapes render' + (bgErrs.length ? ': ' + bgErrs.join('; ') : ''));
+await page.evaluate(() => openSection('bg'));
+await page.click('#bgLooks .look:nth-child(6)'); await page.waitForTimeout(100);
+const look = await page.evaluate(() => ({ type: cur().bgType, bg3: cur().bg3, grain: cur().grain, sel: [...document.querySelectorAll('#bgLooks .look')].findIndex(b => b.classList.contains('sel')), tiles: document.querySelectorAll('#bgLooks .look canvas').length, total: BG_LOOKS.length }));
+check(look.type === 'aurora' && look.bg3 === '#a78bfa' && look.grain === 0.12 && look.sel === 5 && look.tiles === look.total, 'a look applies its full backdrop and is highlighted · ' + JSON.stringify(look));
+// the seeded shapes land in the same relative spots at any size (preview == export)
+const seedOk = await page.evaluate(() => {
+  const S = { ...cur(), bgType: 'solid', bg1: '#000000', shapes: 'confetti', shapeColor: '#ffffff', shapeAlpha: 1, vignette: 0, grain: 0 };
+  const px = (w, h) => { const cv = document.createElement('canvas'); cv.width = w; cv.height = h; const c = cv.getContext('2d'); drawBackdrop(c, w, h, S); const d = c.getImageData(0, 0, w, h).data; const on = []; for (let i = 0; i < d.length; i += 4) if (d[i] > 128) on.push(i / 4); return on; };
+  const a = px(100, 217), b = px(200, 434);
+  const scaled = new Set(b.map(i => (Math.floor(i / 200) >> 1) * 100 + ((i % 200) >> 1)));
+  const hit = a.filter(i => scaled.has(i)).length;
+  return { a: a.length, hit };
+});
+check(seedOk.a > 50 && seedOk.hit / seedOk.a > 0.9, 'seeded shapes are size-independent · ' + JSON.stringify(seedOk));
+
+/* 15. export set pulls in screenshots that are on no slide */
+await page.evaluate(() => { commitSet(planSet(SET_TEMPLATES[0]).slides, ''); deleteSlide(1); project.export.sizes = ['ip69']; project.export.scope = 'all'; project.export.layout = 'folders'; project.export.format = 'png'; project.export.includeUnused = true; });
+await page.click('#exportSetBtn'); await page.waitForSelector('#exportDlg[open]');
+const exUI = await page.evaluate(() => ({ row: !$('exUnusedRow').hidden, checked: $('exIncludeUnused').checked, text: $('exUnusedText').textContent, summary: $('exSummary').textContent, slides: project.slides.length, unused: unusedScreenshots().map(m => m.name) }));
+check(exUI.row && exUI.checked && exUI.slides === 1 && exUI.unused.length === 1 && /2 slides × 1 size = 2 files/.test(exUI.summary), 'export dialog offers to add the unused screenshot · ' + JSON.stringify(exUI));
+dl = page.waitForEvent('download', { timeout: 60000 }); await page.click('#exportSetGo'); d = await dl;
+const zip3 = path.join(OUT, 'all-shots.zip'); await d.saveAs(zip3);
+const l3 = execSync(`unzip -l "${zip3}"`).toString().split('\n').filter(l => /\.png$/.test(l));
+const afterEx = await page.evaluate(() => ({ slides: project.slides.length, unused: unusedScreenshots().length, media: project.slides.map(s => mediaById(s.phones[0].media)?.name), strip: document.querySelectorAll('#slideStrip .slide').length }));
+check(l3.length === 2 && afterEx.slides === 2 && afterEx.unused === 0 && afterEx.media.join() === 'shot1,shot2', 'export set added a slide for the unused screenshot and zipped both · ' + JSON.stringify({ files: l3.length, ...afterEx }));
+// unticked: nothing is added
+await page.evaluate(() => { deleteSlide(1); project.export.includeUnused = false; });
+await page.click('#exportSetBtn'); await page.waitForSelector('#exportDlg[open]');
+dl = page.waitForEvent('download', { timeout: 60000 }); await page.click('#exportSetGo'); d = await dl;
+const zip4 = path.join(OUT, 'one-shot.zip'); await d.saveAs(zip4);
+const l4 = execSync(`unzip -l "${zip4}"`).toString().split('\n').filter(l => /\.png$/.test(l));
+check(l4.length === 1 && (await page.evaluate(() => project.slides.length)) === 1, 'with the option off the set is exported as is');
+await page.evaluate(() => { project.export.includeUnused = true; });
+// dropped screenshots fill placeholder slides in order
+await page.evaluate(() => { const saved = media.filter(m => m.kind === 'image'); for (const m of saved) removeMedia(m.id); commitSet(planSet(SET_TEMPLATES[0]).slides, ''); });
+const ph0 = await page.evaluate(() => ({ slides: project.slides.length, empty: project.slides.flatMap(s => s.phones).filter(p => !p.media).length }));
+await page.setInputFiles('#fileInput', [`${ASSETS}/shot1.png`, `${ASSETS}/shot2.png`]);
+await page.waitForFunction(() => screenshots().length === 2, null, { timeout: 15000 });
+const filled = await page.evaluate(() => project.slides.slice(0, 3).map(s => s.phones.map(p => mediaById(p.media)?.name || '-').join('+')));
+check(ph0.slides === 6 && ph0.empty >= 6 && filled[0] === 'shot1' && filled[1] === 'shot2' && filled[2].startsWith('-'), 'dropped screenshots fill the placeholder slides in order · ' + JSON.stringify({ ph0, filled }));
 
 /* screenshots of the UI */
 await page.evaluate(() => { selectSlide(0); project.preset = 'ip69'; syncAll(); render(); });

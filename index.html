@@ -92,9 +92,28 @@
     border:1px solid var(--border2); background:var(--panel2); cursor:pointer;
   }
   input[type=color]::-webkit-color-swatch-wrapper{padding:2px} input[type=color]::-webkit-color-swatch{border:none; border-radius:5px}
-  .swatches{display:flex; gap:6px; flex-wrap:wrap; margin-top:8px}
-  .swatch{width:32px; height:24px; border-radius:6px; border:1px solid rgba(255,255,255,.14); cursor:pointer; transition:transform .12s, box-shadow .12s}
-  .swatch:hover{transform:translateY(-1px) scale(1.06); box-shadow:0 0 0 2px var(--accent)}
+  /* background looks: live-rendered tiles */
+  #bgLooks{display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:8px}
+  .look{position:relative; aspect-ratio:16/10; border-radius:7px; overflow:hidden; border:1px solid rgba(255,255,255,.14); cursor:pointer; padding:0; background:#000;
+        transition:transform .15s var(--ease), box-shadow .15s, border-color .15s}
+  .look canvas{width:100%; height:100%; display:block}
+  .look:hover{transform:translateY(-1px) scale(1.05); box-shadow:0 0 0 2px var(--accent); border-color:transparent}
+  .look.sel{box-shadow:0 0 0 2px var(--accent); border-color:transparent}
+  .look.sel::after{content:"✓"; position:absolute; right:4px; top:3px; width:14px; height:14px; border-radius:50%; background:var(--accent); color:#fff; font-size:9px; font-weight:800; display:grid; place-items:center}
+  /* complete-set template cards */
+  #setGrid{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:6px}
+  .setcard{display:block; padding:7px 7px 9px; border-radius:11px; border:1px solid var(--border2); background:var(--panel2); text-align:left; cursor:pointer;
+           transition:border-color .15s, transform .15s var(--ease), box-shadow .15s}
+  .setcard:hover{border-color:var(--accent); background:var(--panel2); transform:translateY(-2px); box-shadow:0 10px 24px rgba(0,0,0,.35)}
+  .setcard .strip{display:flex; gap:4px; justify-content:center; align-items:center; padding:8px 6px; border-radius:8px; background:#0a0a10; min-height:100px}
+  .setcard .strip canvas{height:84px; border-radius:4px; display:block; box-shadow:0 2px 8px rgba(0,0,0,.5); transition:transform .25s var(--ease)}
+  .setcard:hover .strip canvas:nth-child(1){transform:translateX(-2px) rotate(-2deg)}
+  .setcard:hover .strip canvas:nth-child(3){transform:translateX(2px) rotate(2deg)}
+  .setcard .nm{font-size:12px; font-weight:650; margin-top:8px; color:var(--text)}
+  .setcard .ds{font-size:10.5px; color:var(--muted); line-height:1.3; margin-top:2px}
+  .setPreview{display:flex; gap:8px; overflow-x:auto; padding:12px; border-radius:10px; background:#0a0a10; margin:12px 0 10px; scrollbar-width:thin}
+  .setPreview canvas{height:156px; border-radius:6px; flex:0 0 auto; box-shadow:0 4px 14px rgba(0,0,0,.5); animation:pop .3s var(--ease) backwards}
+  .setPreview:empty{display:none}
   button{
     font:inherit; border-radius:8px; cursor:pointer; padding:8px 12px; font-weight:500;
     background:var(--panel2); color:var(--text); border:1px solid var(--border2);
@@ -255,9 +274,13 @@
     </div></div>
   </section>
 
-  <section class="sec" data-sec="templates">
-    <h2>Style presets<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg></h2>
+  <section class="sec open" data-sec="templates">
+    <h2>Templates <span class="pill">complete sets</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg></h2>
     <div class="body"><div class="inner">
+      <label class="first">Complete App Store sets <span class="hint">one click builds every slide</span></label>
+      <div id="setGrid"></div>
+      <div class="note">Each set uses all your screenshots in library order, one layout per slide, with matching backgrounds and type. Previews show your own screenshots once you add some.</div>
+      <label style="margin-top:14px">Single-slide styles</label>
       <div id="templateGrid"></div>
       <div class="btnrow"><button id="applyStyleAll" title="Copy this slide's background, frame and typography to every slide">Apply this style to all slides</button></div>
     </div></div>
@@ -311,23 +334,29 @@
   <section class="sec" data-sec="bg">
     <h2>Background<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg></h2>
     <div class="body"><div class="inner">
-      <label class="first">Style</label>
+      <label class="first">Looks <span class="hint">click to apply, then tweak below</span></label>
+      <div id="bgLooks"></div>
+      <label style="margin-top:14px">Style</label>
       <select id="bgType">
         <option value="linear">Linear gradient</option><option value="radial">Radial gradient</option>
-        <option value="aurora">Aurora blobs</option><option value="mesh">Mesh gradient</option><option value="solid">Solid color</option>
+        <option value="horizon">Three-color blend</option><option value="conic">Sweep gradient</option>
+        <option value="aurora">Aurora</option><option value="mesh">Mesh gradient</option><option value="spotlight">Spotlight</option>
+        <option value="split">Diagonal split</option><option value="stripes">Soft stripes</option><option value="solid">Solid color</option>
       </select>
       <div class="row">
         <div><label>Color 1</label><input type="color" id="bg1"></div>
         <div><label>Color 2</label><input type="color" id="bg2"></div>
+        <div><label>Accent</label><input type="color" id="bg3"></div>
       </div>
-      <label>Gradient angle <span class="val" id="bgAngleVal"></span></label>
+      <label>Angle <span class="val" id="bgAngleVal"></span></label>
       <input type="range" id="bgAngle" min="0" max="360" value="135">
-      <div class="swatches" id="swatches"></div>
       <div class="row">
         <div><label>Backdrop shapes</label>
           <select id="shapes">
             <option value="none">None</option><option value="circles">Soft circles</option><option value="rings">Rings</option>
-            <option value="dots">Dot grid</option><option value="grid">Fine grid</option><option value="waves">Waves</option>
+            <option value="bokeh">Bokeh</option><option value="blob">Organic blob</option><option value="squircles">Squircles</option>
+            <option value="confetti">Confetti</option><option value="dots">Dot grid</option><option value="grid">Fine grid</option>
+            <option value="lines">Diagonal lines</option><option value="waves">Waves</option>
           </select></div>
         <div><label>Shape color</label><input type="color" id="shapeColor"></div>
       </div>
@@ -489,10 +518,23 @@
       <div><label>Folder layout</label><select id="exLayout"><option value="folders">One folder per device size</option><option value="fastlane">fastlane deliver (flat, per locale)</option></select></div>
       <div><label>Locale</label><input type="text" id="exLocale" value="en-US" autocomplete="off"></div>
     </div>
+    <div class="checks" id="exUnusedRow" style="margin-top:14px" hidden>
+      <label><input type="checkbox" id="exIncludeUnused"> <span id="exUnusedText"></span></label>
+    </div>
     <label style="margin-top:14px">Sizes to export <span class="hint">App Store Connect scales the required sizes to the rest</span></label>
     <div class="sizegrid" id="exSizes"></div>
   </div>
-  <div class="dfoot"><button data-close>Cancel</button><button class="primary" id="exportSetGo">Export .zip</button></div>
+  <div class="dfoot"><div class="note" id="exSummary" style="margin:0 auto 0 0"></div><button data-close>Cancel</button><button class="primary" id="exportSetGo">Export .zip</button></div>
+</dialog>
+
+<dialog id="setDlg">
+  <div class="dhead"><h3 id="setTitle">Build a complete set</h3><div class="spacer"></div><button class="ghost iconbtn" data-close>✕</button></div>
+  <div class="dbody">
+    <div class="note" id="setDesc" style="margin-top:0"></div>
+    <div class="setPreview" id="setPreview"></div>
+    <div class="note" id="setPlan"></div>
+  </div>
+  <div class="dfoot"><button data-close>Cancel</button><button id="setRestyle" title="Keep your slides, screenshots and captions; change only the look and layouts">Restyle my slides</button><button class="primary" id="setBuild">Build set</button></div>
 </dialog>
 
 <dialog id="previewDlg">
@@ -972,10 +1014,62 @@ const DEV = Object.fromEntries(DEVICES.map(d => [d.id, d]));
 const devFolder = d => `${d.key} ${d.w}x${d.h}`;
 const MAX_SLIDES = 10, MAX_PHONES = 3;
 
-const GRADIENTS = [
-  ['#4f46e5','#9333ea'], ['#0ea5e9','#6366f1'], ['#059669','#0ea5e9'], ['#f97316','#ec4899'],
-  ['#dc2626','#7c3aed'], ['#0f172a','#334155'], ['#111113','#1c1c22'], ['#fafafa','#e4e4e7'],
-  ['#f5f5f7','#e7e7eb'], ['#c9a5a0','#8e4a45'], ['#fde68a','#f97316'], ['#a7f3d0','#0d9488'],
+/* ---------- colour helpers (hex in, hex out) ---------- */
+const hexToRgb = hex => { const n = parseInt(hex.slice(1, 7), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
+const rgbToHex = (r, g, b) => '#' + [r, g, b].map(v => Math.round(Math.min(255, Math.max(0, v))).toString(16).padStart(2, '0')).join('');
+const mixHex = (a, b, t) => { const A = hexToRgb(a), B = hexToRgb(b); return rgbToHex(...A.map((v, i) => v + (B[i] - v) * t)); };
+const shadeHex = (hex, amt) => amt < 0 ? mixHex(hex, '#000000', -amt) : mixHex(hex, '#ffffff', amt);
+/* rotate a colour's hue by deg, keeping saturation and lightness */
+function hueShift(hex, deg) {
+  const [r, g, b] = hexToRgb(hex).map(v => v / 255);
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2;
+  let h = 0, s = 0;
+  if (max !== min) {
+    const d = max - min; s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4; h /= 6;
+  }
+  h = ((h + deg / 360) % 1 + 1) % 1;
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
+  const f = t => { t = (t % 1 + 1) % 1; return t < 1 / 6 ? p + (q - p) * 6 * t : t < 1 / 2 ? q : t < 2 / 3 ? p + (q - p) * (2 / 3 - t) * 6 : p; };
+  return rgbToHex(f(h + 1 / 3) * 255, f(h) * 255, f(h - 1 / 3) * 255);
+}
+/* small deterministic PRNG (mulberry32) so scattered shapes land identically in the preview, thumbnails and every export size */
+function seeded(seed) {
+  let a = seed >>> 0;
+  return () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+
+const BG_TYPES = ['linear', 'radial', 'horizon', 'conic', 'aurora', 'mesh', 'spotlight', 'split', 'stripes', 'solid'];
+const SHAPES = ['none', 'circles', 'rings', 'bokeh', 'blob', 'squircles', 'confetti', 'dots', 'grid', 'lines', 'waves'];
+/* the keys a "look" owns: everything about the backdrop, nothing about devices or type */
+const LOOK_KEYS = ['bgType', 'bg1', 'bg2', 'bg3', 'bgAngle', 'shapes', 'shapeColor', 'shapeAlpha', 'grain', 'vignette'];
+const LOOK_DEFAULTS = { bgType: 'linear', bgAngle: 135, shapes: 'none', shapeColor: '#ffffff', shapeAlpha: 0.12, grain: 0, vignette: 0 };
+/* curated backdrops, rendered live in the Background panel */
+const BG_LOOKS = [
+  { name:'Indigo → violet',  bgType:'linear',    bg1:'#4f46e5', bg2:'#9333ea', bg3:'#ec4899' },
+  { name:'Sky → indigo',     bgType:'linear',    bg1:'#0ea5e9', bg2:'#6366f1', bg3:'#22d3ee', bgAngle:120 },
+  { name:'Emerald → sky',    bgType:'linear',    bg1:'#059669', bg2:'#0ea5e9', bg3:'#a7f3d0' },
+  { name:'Sunset horizon',   bgType:'horizon',   bg1:'#f97316', bg2:'#7c3aed', bg3:'#ec4899', bgAngle:160 },
+  { name:'Peach cream',      bgType:'horizon',   bg1:'#fde68a', bg2:'#fb7185', bg3:'#fdba74', bgAngle:150 },
+  { name:'Aurora',           bgType:'aurora',    bg1:'#22d3ee', bg2:'#1e1b4b', bg3:'#a78bfa', grain:0.12, vignette:0.2 },
+  { name:'Northern lights',  bgType:'aurora',    bg1:'#34d399', bg2:'#0f172a', bg3:'#38bdf8', grain:0.1, vignette:0.2 },
+  { name:'Berry mesh',       bgType:'mesh',      bg1:'#7c3aed', bg2:'#db2777', bg3:'#f59e0b', bgAngle:150 },
+  { name:'Candy mesh',       bgType:'mesh',      bg1:'#f472b6', bg2:'#60a5fa', bg3:'#facc15', bgAngle:120 },
+  { name:'Blue spotlight',   bgType:'spotlight', bg1:'#3b82f6', bg2:'#090b14', bg3:'#7c3aed', grain:0.1 },
+  { name:'Ember spotlight',  bgType:'spotlight', bg1:'#f97316', bg2:'#120a0a', bg3:'#dc2626', grain:0.1 },
+  { name:'Sweep',            bgType:'conic',     bg1:'#6366f1', bg2:'#ec4899', bg3:'#f59e0b', bgAngle:135 },
+  { name:'Rose split',       bgType:'split',     bg1:'#111827', bg2:'#f43f5e', bg3:'#fda4af', bgAngle:115 },
+  { name:'Mint split',       bgType:'split',     bg1:'#ecfdf5', bg2:'#10b981', bg3:'#ffffff', bgAngle:65 },
+  { name:'Soft stripes',     bgType:'stripes',   bg1:'#1e1b4b', bg2:'#4338ca', bg3:'#6d28d9', bgAngle:30 },
+  { name:'Ocean waves',      bgType:'radial',    bg1:'#0ea5e9', bg2:'#0b1d3a', bg3:'#14b8a6', shapes:'waves', shapeColor:'#ffffff', shapeAlpha:0.1, vignette:0.15 },
+  { name:'Bokeh dream',      bgType:'radial',    bg1:'#e0e7ff', bg2:'#c7d2fe', bg3:'#fbcfe8', shapes:'bokeh', shapeColor:'#ffffff', shapeAlpha:0.35 },
+  { name:'Apple light',      bgType:'linear',    bg1:'#f5f5f7', bg2:'#e7e7eb', bg3:'#d4d4d8', bgAngle:150 },
+  { name:'Paper',            bgType:'horizon',   bg1:'#f7f1e7', bg2:'#e6dbc9', bg3:'#efe4d2', bgAngle:160, grain:0.1 },
+  { name:'Graphite',         bgType:'linear',    bg1:'#0f172a', bg2:'#334155', bg3:'#64748b', bgAngle:160 },
+  { name:'Midnight grain',   bgType:'linear',    bg1:'#0a0a0c', bg2:'#1c1c22', bg3:'#2a2a33', bgAngle:180, grain:0.15, vignette:0.3 },
+  { name:'Neon grid',        bgType:'mesh',      bg1:'#312e81', bg2:'#0f172a', bg3:'#0e7490', shapes:'grid', shapeColor:'#22d3ee', shapeAlpha:0.08, vignette:0.25 },
+  { name:'Electric yellow',  bgType:'solid',     bg1:'#facc15', bg2:'#0a0a0a', bg3:'#0a0a0a', shapes:'lines', shapeColor:'#0a0a0a', shapeAlpha:0.08 },
+  { name:'Confetti',         bgType:'linear',    bg1:'#fb7185', bg2:'#f59e0b', bg3:'#fde68a', shapes:'confetti', shapeColor:'#ffffff', shapeAlpha:0.5, bgAngle:120 },
 ];
 const FONTS = [
   ['System (SF Pro)', '-apple-system,"SF Pro Display","Segoe UI",Roboto,sans-serif'],
@@ -1060,12 +1154,12 @@ const TEMPLATES = [
     sub:{ font:8, weight:400, size:1, color:'#57534e', italic:true, caps:false, spacing:0 },
     phones:[{ scale:0.85, tilt:0, x:0, y:0.03 }], sh:'Quietly brilliant', ss:'An app with taste' },
   { name:'Neon Mono', fg:'#22d3ee',
-    st:{ bgType:'mesh', bg1:'#312e81', bg2:'#0f172a', bgAngle:135, textPos:'top', textAlign:'left', textOffsetX:0, textOffsetY:0.01, lineH:1.3, tGap:1, tShadow:0.2, shapes:'grid', shapeColor:'#22d3ee', shapeAlpha:0.08, grain:0, vignette:0.25 },
+    st:{ bgType:'mesh', bg1:'#312e81', bg2:'#0f172a', bg3:'#0e7490', bgAngle:135, textPos:'top', textAlign:'left', textOffsetX:0, textOffsetY:0.01, lineH:1.3, tGap:1, tShadow:0.2, shapes:'grid', shapeColor:'#22d3ee', shapeAlpha:0.08, grain:0, vignette:0.25 },
     head:{ font:15, weight:700, size:0.9, color:'#22d3ee', italic:false, caps:false, spacing:2 },
     sub:{ font:15, weight:400, size:0.9, color:'#94a3b8', italic:false, caps:false, spacing:0 },
     phones:[{ scale:0.9, tilt:6, x:0.06, y:0.06 }], sh:'ship.faster()', ss:'// your code companion' },
   { name:'Aurora Glass', fg:'#fff',
-    st:{ bgType:'aurora', bg1:'#22d3ee', bg2:'#1e1b4b', bgAngle:135, textPos:'top', textAlign:'center', textOffsetX:0, textOffsetY:0, lineH:1.15, tGap:1, tShadow:0.3, shapes:'none', grain:0.12, vignette:0.2, glow:0.5, glowColor:'#67e8f9' },
+    st:{ bgType:'aurora', bg1:'#22d3ee', bg2:'#1e1b4b', bg3:'#a78bfa', bgAngle:135, textPos:'top', textAlign:'center', textOffsetX:0, textOffsetY:0, lineH:1.15, tGap:1, tShadow:0.3, shapes:'none', grain:0.12, vignette:0.2, glow:0.5, glowColor:'#67e8f9' },
     head:{ font:0, weight:800, size:1.1, color:'#ffffff', italic:false, caps:false, spacing:0 },
     sub:{ font:0, weight:400, size:1, color:'#cffafe', italic:false, caps:false, spacing:0 },
     phones:[{ scale:0.9, tilt:0, x:0, y:0.04 }], sh:'Feels like magic', ss:'Fast, fluid, beautiful' },
@@ -1098,6 +1192,169 @@ const TEMPLATES = [
 ];
 
 /* =====================================================================
+   Complete-set templates: one click builds every slide of an App Store set.
+   base  = the shared look (backdrop, frame, typography); head/subx are merged into the slide's.
+   vary  = per-slide variation of the look (hue drift, alternating palettes…), by slide index.
+   slides = layouts cycled in order; each consumes as many screenshots as it has phones.
+   ===================================================================== */
+const LAYOUTS = {
+  hero:    [{ scale:0.88, tilt:0, x:0, y:0 }],
+  big:     [{ scale:1.05, tilt:0, x:0, y:0.16 }],
+  tiltL:   [{ scale:1.18, tilt:-10, x:0.03, y:0.15 }],
+  tiltR:   [{ scale:1.18, tilt:10, x:-0.03, y:0.15 }],
+  cornerR: [{ scale:1.5, tilt:18, x:0.20, y:0.30 }],
+  cornerL: [{ scale:1.5, tilt:-18, x:-0.20, y:0.30 }],
+  duo:     [{ scale:1.02, tilt:-8, x:-0.17, y:0.08 }, { scale:0.9, tilt:9, x:0.30, y:0.20 }],
+  trio:    [{ scale:0.72, tilt:-14, x:-0.30, y:0.10 }, { scale:0.72, tilt:14, x:0.30, y:0.10 }, { scale:0.85, tilt:0, x:0, y:0.02 }],
+  topcut:  [{ scale:1.08, tilt:0, x:0, y:-0.14 }],
+};
+const WHITE_HEAD = { font:0, weight:800, size:1.1, color:'#ffffff', italic:false, caps:false, spacing:0 };
+const slideSpec = (layout, sh, ss, extra = {}) => ({ phones: LAYOUTS[layout], sh, ss, ...extra });
+const SET_TEMPLATES = [
+  { id:'clean', name:'Clean Store', desc:'Light gray, black headlines. The classic App Store look.',
+    base:{ bgType:'linear', bg1:'#f5f5f7', bg2:'#e7e7eb', bg3:'#d4d4d8', bgAngle:150, frameColor:'titanium', shadowStr:1.2, lineH:1.12, tGap:1.3,
+           head:{ ...WHITE_HEAD, size:1.12, color:'#111114' }, subx:{ font:0, weight:400, size:1.05, color:'#6b7280', italic:false, caps:false, spacing:0 } },
+    slides:[
+      slideSpec('big', 'Everything in one place', 'Designed for focus'),
+      slideSpec('cornerR', 'Find it in seconds', 'Search that keeps up with you', { textAlign:'left' }),
+      slideSpec('duo', 'Plan together', 'Share with anyone, in real time'),
+      slideSpec('topcut', 'Stay on track', 'Gentle reminders, never nagging', { textPos:'bottom' }),
+      slideSpec('cornerL', 'Works offline', 'Syncs the moment you are back', { textAlign:'right' }),
+      slideSpec('hero', 'Private by design', 'Your data stays on your device'),
+    ] },
+  { id:'midnight', name:'Midnight Spotlight', desc:'Dark, with a spotlight that shifts hue every slide.',
+    base:{ bgType:'spotlight', bg1:'#3b82f6', bg2:'#090b14', bg3:'#7c3aed', grain:0.1, glow:0.35, glowColor:'#60a5fa', frameColor:'black', shadowStr:1.4, tShadow:0.2, lineH:1.12, tGap:1.2,
+           head:{ ...WHITE_HEAD }, subx:{ font:0, weight:400, size:1, color:'#9ca3af', italic:false, caps:false, spacing:0 } },
+    vary: i => ({ bg1: hueShift('#3b82f6', i * 38), bg3: hueShift('#7c3aed', i * 38), glowColor: hueShift('#60a5fa', i * 38) }),
+    slides:[
+      slideSpec('hero', 'Built for the night shift', 'Dark mode, done right'),
+      slideSpec('tiltL', 'Fast. Really fast.', 'Opens in a blink, every time'),
+      slideSpec('cornerR', 'Every detail at a glance', 'Widgets, Live Activities and more', { textAlign:'left' }),
+      slideSpec('duo', 'Two taps to anything', 'Shortcuts you will actually use'),
+      slideSpec('topcut', 'Your week, mapped out', 'Plan once, flow all week', { textPos:'bottom' }),
+      slideSpec('tiltR', 'Loved by thousands', '', { stars:true }),
+    ] },
+  { id:'pop', name:'Gradient Pop', desc:'Vivid gradients that rotate through the spectrum.',
+    base:{ bgType:'linear', bg1:'#6366f1', bg2:'#ec4899', bg3:'#f59e0b', bgAngle:135, shapes:'circles', shapeColor:'#ffffff', shapeAlpha:0.1, tShadow:0.3, frameColor:'silver', lineH:1.1,
+           head:{ ...WHITE_HEAD, weight:900, size:1.15 }, subx:{ font:0, weight:500, size:1, color:'#fdf2f8', italic:false, caps:false, spacing:0 } },
+    vary: i => ({ bg1: hueShift('#6366f1', i * 40), bg2: hueShift('#ec4899', i * 40) }),
+    slides:[
+      slideSpec('big', 'Level up your day', 'Fun that follows you'),
+      slideSpec('tiltR', 'Track streaks', 'Momentum you can see'),
+      slideSpec('cornerL', 'Challenge friends', 'Leaderboards every week', { textAlign:'right' }),
+      slideSpec('trio', 'Three views. One app.', 'Home, stats and profile'),
+      slideSpec('topcut', 'Rewards that matter', 'Unlock themes and badges', { textPos:'bottom' }),
+      slideSpec('hero', 'Start today', 'Free to try', { badge:'NEW' }),
+    ] },
+  { id:'aurora', name:'Aurora Glass', desc:'Glowing aurora on navy, soft grain, device glow.',
+    base:{ bgType:'aurora', bg1:'#22d3ee', bg2:'#1e1b4b', bg3:'#a78bfa', bgAngle:135, grain:0.12, vignette:0.2, glow:0.5, glowColor:'#67e8f9', tShadow:0.3, frameColor:'black',
+           head:{ ...WHITE_HEAD }, subx:{ font:0, weight:400, size:1, color:'#cffafe', italic:false, caps:false, spacing:0 } },
+    vary: i => ({ bg1: hueShift('#22d3ee', i * 28), bg3: hueShift('#a78bfa', i * 28), glowColor: hueShift('#67e8f9', i * 28) }),
+    slides:[
+      slideSpec('hero', 'Feels like magic', 'Fast, fluid, beautiful'),
+      slideSpec('cornerR', 'Smart suggestions', 'It learns how you work', { textAlign:'left' }),
+      slideSpec('tiltL', 'Capture anything', 'Photos, voice, links and files'),
+      slideSpec('duo', 'Organize effortlessly', 'Tags and folders that make sense'),
+      slideSpec('topcut', 'Sync everywhere', 'iPhone, iPad and Mac', { textPos:'bottom' }),
+      slideSpec('big', 'Ready when you are', 'Get started in seconds'),
+    ] },
+  { id:'pastel', name:'Pastel Studio', desc:'Alternating pastels, rounded type and bokeh.',
+    base:{ bgType:'radial', bg1:'#e0e7ff', bg2:'#c7d2fe', bg3:'#fbcfe8', shapes:'bokeh', shapeColor:'#ffffff', shapeAlpha:0.35, frameColor:'silver', shadowStr:0.9, lineH:1.12,
+           head:{ ...WHITE_HEAD, font:1, color:'#1e1b4b' }, subx:{ font:1, weight:500, size:1, color:'#64748b', italic:false, caps:false, spacing:0 } },
+    vary: i => [['#e0e7ff','#c7d2fe','#fbcfe8'], ['#d1fae5','#a7f3d0','#bbf7d0'], ['#fce7f3','#fbcfe8','#e9d5ff'], ['#fef3c7','#fde68a','#fed7aa'], ['#e0f2fe','#bae6fd','#cffafe'], ['#ede9fe','#ddd6fe','#fbcfe8']]
+                  .map(([bg1, bg2, bg3]) => ({ bg1, bg2, bg3 }))[i % 6],
+    slides:[
+      slideSpec('hero', 'A calmer way to plan', 'Simple, friendly, yours'),
+      slideSpec('tiltR', 'Little wins, every day', 'Habits that stick'),
+      slideSpec('cornerL', 'Journal in a tap', 'Prompts when you need them', { textAlign:'right' }),
+      slideSpec('duo', 'Moods and moments', 'See the patterns'),
+      slideSpec('topcut', 'Gentle reminders', 'Never a guilt trip', { textPos:'bottom' }),
+      slideSpec('big', 'Made with care', 'No ads, ever'),
+    ] },
+  { id:'bold', name:'Bold Contrast', desc:'Black and electric yellow, heavy caps.',
+    base:{ bgType:'solid', bg1:'#0a0a0a', bg2:'#facc15', bg3:'#facc15', shapes:'lines', shapeColor:'#facc15', shapeAlpha:0.08, frameColor:'black', shadowStr:1.3, lineH:1.0, tGap:1.2,
+           head:{ ...WHITE_HEAD, weight:900, size:1.2, color:'#facc15', caps:true, spacing:2 }, subx:{ font:0, weight:600, size:1, color:'#e5e5e5', italic:false, caps:false, spacing:0 } },
+    vary: i => i % 2 ? { bg1:'#facc15', shapeColor:'#0a0a0a', head:{ color:'#0a0a0a' }, subx:{ color:'#3f3f46' } } : {},
+    slides:[
+      slideSpec('big', 'Train harder', 'Workouts that push back'),
+      slideSpec('cornerR', 'Every rep counts', 'Auto-tracking, zero typing', { textAlign:'left' }),
+      slideSpec('tiltL', 'Beat yesterday', 'Personal records, celebrated'),
+      slideSpec('topcut', 'Plans by real coaches', 'From first mile to marathon', { textPos:'bottom' }),
+      slideSpec('duo', 'Your crew', 'Compete, cheer, repeat'),
+      slideSpec('hero', 'No excuses', 'Start free today'),
+    ] },
+  { id:'serif', name:'Editorial Serif', desc:'Cream paper and Didot headlines. Quietly premium.',
+    base:{ bgType:'horizon', bg1:'#f7f1e7', bg2:'#e6dbc9', bg3:'#efe4d2', bgAngle:160, grain:0.1, frameColor:'gold', shadowStr:0.9, lineH:1.15, tGap:1.3,
+           head:{ font:10, weight:700, size:1.2, color:'#1c1917', italic:false, caps:false, spacing:0 }, subx:{ font:8, weight:400, size:1, color:'#57534e', italic:true, caps:false, spacing:0 } },
+    slides:[
+      slideSpec('hero', 'Quietly brilliant', 'An app with taste'),
+      slideSpec('cornerR', 'Read without noise', 'Just the words, beautifully set', { textAlign:'left' }),
+      slideSpec('tiltR', 'Your library, curated', 'Collections that grow with you'),
+      slideSpec('topcut', 'Highlights worth keeping', 'Export to notes in one tap', { textPos:'bottom' }),
+      slideSpec('cornerL', 'Typography first', 'Fonts, margins and themes', { textAlign:'right' }),
+      slideSpec('big', 'Begin a chapter', 'Free for 14 days'),
+    ] },
+  { id:'neon', name:'Neon Dev', desc:'Dark mesh, cyan grid, monospace copy.',
+    base:{ bgType:'mesh', bg1:'#312e81', bg2:'#0f172a', bg3:'#0e7490', bgAngle:135, shapes:'grid', shapeColor:'#22d3ee', shapeAlpha:0.08, vignette:0.25, glow:0.3, glowColor:'#22d3ee', frameColor:'black', tShadow:0.2, lineH:1.3,
+           head:{ font:15, weight:700, size:0.9, color:'#22d3ee', italic:false, caps:false, spacing:2 }, subx:{ font:15, weight:400, size:0.9, color:'#94a3b8', italic:false, caps:false, spacing:0 } },
+    slides:[
+      slideSpec('tiltR', 'ship.faster()', '// your code companion', { textAlign:'left' }),
+      slideSpec('cornerR', 'logs.tail()', '// live, filtered, searchable', { textAlign:'left' }),
+      slideSpec('hero', 'deploy --now', '// one tap to production', { textAlign:'left' }),
+      slideSpec('duo', 'git.review()', '// diffs that read well on a phone', { textAlign:'left' }),
+      slideSpec('topcut', 'alerts.quiet()', '// only what matters, when it matters', { textPos:'bottom', textAlign:'left' }),
+      slideSpec('big', 'npm i focus', '// free for open source', { textAlign:'left' }),
+    ] },
+  { id:'sunset', name:'Sunset Warm', desc:'Orange-to-violet horizon, bokeh, Cosmic Orange frame.',
+    base:{ bgType:'horizon', bg1:'#f97316', bg2:'#7c3aed', bg3:'#ec4899', bgAngle:160, shapes:'bokeh', shapeColor:'#ffffff', shapeAlpha:0.18, tShadow:0.35, frameColor:'orange', lineH:1.1,
+           head:{ ...WHITE_HEAD, size:1.12 }, subx:{ font:0, weight:400, size:1, color:'#ffe4e6', italic:false, caps:false, spacing:0 } },
+    vary: i => ({ bg1: hueShift('#f97316', -i * 12), bg3: hueShift('#ec4899', -i * 12), bg2: hueShift('#7c3aed', -i * 12) }),
+    slides:[
+      slideSpec('hero', 'Golden hour, every hour', 'Photos that glow'),
+      slideSpec('tiltL', 'One-tap edits', 'Presets made by photographers'),
+      slideSpec('cornerR', 'Share in a story', 'Sized for every platform', { textAlign:'left' }),
+      slideSpec('duo', 'Before and after', 'Swipe to compare'),
+      slideSpec('topcut', 'Your best shots, found', 'Smart albums that curate themselves', { textPos:'bottom' }),
+      slideSpec('big', 'Shoot. Edit. Share.', 'Start free'),
+    ] },
+  { id:'ocean', name:'Ocean Depth', desc:'Deep blue glow, wave lines, Deep Blue frame.',
+    base:{ bgType:'radial', bg1:'#0ea5e9', bg2:'#0b1d3a', bg3:'#14b8a6', shapes:'waves', shapeColor:'#ffffff', shapeAlpha:0.1, vignette:0.15, frameColor:'blue', tShadow:0.25, lineH:1.12,
+           head:{ ...WHITE_HEAD }, subx:{ font:0, weight:400, size:1, color:'#bae6fd', italic:false, caps:false, spacing:0 } },
+    slides:[
+      slideSpec('hero', 'Dive into your finances', 'Clarity, not spreadsheets'),
+      slideSpec('cornerR', 'Every account, one view', 'Banks, cards and crypto', { textAlign:'left' }),
+      slideSpec('tiltR', 'Budgets that bend', 'Life happens. Plans adjust.'),
+      slideSpec('topcut', 'Spot the leaks', 'Subscriptions you forgot about', { textPos:'bottom' }),
+      slideSpec('duo', 'Goals within reach', 'Watch them fill up'),
+      slideSpec('big', 'Bank-level security', 'Face ID and encryption'),
+    ] },
+  { id:'split', name:'Duotone Split', desc:'A hard diagonal split; the colors swap each slide.',
+    base:{ bgType:'split', bg1:'#111827', bg2:'#f43f5e', bg3:'#fda4af', bgAngle:115, frameColor:'black', shadowStr:1.3, lineH:1.05,
+           head:{ ...WHITE_HEAD, weight:900, size:1.18, caps:true, spacing:1 }, subx:{ font:0, weight:500, size:1, color:'#fecdd3', italic:false, caps:false, spacing:0 } },
+    vary: i => i % 2 ? { bg1:'#f43f5e', bg2:'#111827' } : {},
+    slides:[
+      slideSpec('tiltL', 'Order in seconds', 'Your favorites, remembered'),
+      slideSpec('cornerR', 'Live tracking', 'Watch it arrive', { textAlign:'left' }),
+      slideSpec('hero', 'Deals daily', 'Fresh every morning', { badge:'NEW' }),
+      slideSpec('duo', 'Group orders', 'Split the bill automatically'),
+      slideSpec('topcut', 'Earn rewards', 'Points on every order', { textPos:'bottom' }),
+      slideSpec('big', 'Hungry yet?', 'Download free'),
+    ] },
+  { id:'playful', name:'Playful Confetti', desc:'Candy pastels with confetti and rounded type.',
+    base:{ bgType:'horizon', bg1:'#f9a8d4', bg2:'#93c5fd', bg3:'#c4b5fd', bgAngle:135, shapes:'confetti', shapeColor:'#ffffff', shapeAlpha:0.6, frameColor:'silver', shadowStr:0.9, lineH:1.1,
+           head:{ ...WHITE_HEAD, font:1, size:1.15, color:'#312e81' }, subx:{ font:1, weight:500, size:1, color:'#4c1d95', italic:false, caps:false, spacing:0 } },
+    vary: i => ({ bg1: hueShift('#f9a8d4', i * 30), bg2: hueShift('#93c5fd', i * 30), bg3: hueShift('#c4b5fd', i * 30) }),
+    slides:[
+      slideSpec('big', 'Learning that feels like play', 'Five minutes a day'),
+      slideSpec('tiltR', 'Streaks and stickers', 'Celebrate every lesson'),
+      slideSpec('cornerL', 'Made for little hands', 'Big buttons, no ads', { textAlign:'right' }),
+      slideSpec('trio', 'Hundreds of games', 'Reading, math and music'),
+      slideSpec('topcut', 'Parents stay in the loop', 'Weekly progress reports', { textPos:'bottom' }),
+      slideSpec('hero', 'Try it free', 'Kids 3 to 8'),
+    ] },
+];
+
+/* =====================================================================
    State
    ===================================================================== */
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
@@ -1105,7 +1362,7 @@ function defaultSlide() {
   return {
     id: uid(),
     phones: [{ media: null, scale: 0.88, tilt: 0, x: 0, y: 0 }],
-    bgType: 'linear', bg1: '#4f46e5', bg2: '#9333ea', bgAngle: 135,
+    bgType: 'linear', bg1: '#4f46e5', bg2: '#9333ea', bg3: '#ec4899', bgAngle: 135,
     shapes: 'none', shapeColor: '#ffffff', shapeAlpha: 0.12, grain: 0, vignette: 0,
     model: '17pro', frameColor: 'titanium', shadowStr: 1, glow: 0, glowColor: '#ffffff', glare: false,
     fillMode: false,
@@ -1117,12 +1374,12 @@ function defaultSlide() {
   };
 }
 /* keys that make up a slide's "style" (everything except its content) */
-const STYLE_KEYS = ['model', 'bgType','bg1','bg2','bgAngle','shapes','shapeColor','shapeAlpha','grain','vignette','frameColor','shadowStr','glow','glowColor','glare',
+const STYLE_KEYS = ['model', 'bgType','bg1','bg2','bg3','bgAngle','shapes','shapeColor','shapeAlpha','grain','vignette','frameColor','shadowStr','glow','glowColor','glare',
                     'badgeBg','badgeFg','textPos','textAlign','textOffsetX','textOffsetY','textWidth','lineH','tGap','tShadow','head','subx'];
 function defaultProject() {
   return {
     v: 2, name: 'My App', preset: 'ip69', slides: [defaultSlide()], active: 0,
-    export: { format: 'png', layout: 'folders', locale: 'en-US', scope: 'all', sizes: ['ip69', 'ipad13'] },
+    export: { format: 'png', layout: 'folders', locale: 'en-US', scope: 'all', sizes: ['ip69', 'ipad13'], includeUnused: true },
     video: { len: 30, loop: true, audio: true, videoVol: 1, music: null, musicVol: 0.8, fade: true },
   };
 }
@@ -1255,6 +1512,9 @@ function sanitizeProject() {
     out.phones = out.phones.slice(0, MAX_PHONES).map(p => ({ media: mediaById(p.media) ? p.media : null, scale: +p.scale || 0.88, tilt: +p.tilt || 0, x: +p.x || 0, y: +p.y || 0 }));
     if (!FRAMES[out.frameColor]) out.frameColor = 'titanium';
     if (!IPHONES[out.model]) out.model = '17pro';
+    if (!BG_TYPES.includes(out.bgType)) out.bgType = 'linear';
+    if (!SHAPES.includes(out.shapes)) out.shapes = 'none';
+    for (const k of ['bg1', 'bg2', 'bg3', 'shapeColor', 'glowColor', 'badgeBg', 'badgeFg']) if (!/^#[0-9a-f]{6}$/i.test(out[k])) out[k] = d[k];
     if (!FONTS[out.head.font]) out.head.font = 0; if (!FONTS[out.subx.font]) out.subx.font = 0;
     return out;
   });
@@ -1262,6 +1522,7 @@ function sanitizeProject() {
   project.export = { ...defaultProject().export, ...(project.export || {}) };
   project.export.sizes = (project.export.sizes || []).filter(id => DEV[id] && !DEV[id].video);
   if (!project.export.sizes.length) project.export.sizes = ['ip69', 'ipad13'];
+  project.export.includeUnused = project.export.includeUnused !== false;
   project.video = { ...defaultProject().video, ...(project.video || {}) };
   project.video.len = clamp(Math.round(+project.video.len || 30), 15, 30);
   project.video.videoVol = clamp(+project.video.videoVol, 0, 1); if (isNaN(project.video.videoVol)) project.video.videoVol = 1;
@@ -1298,7 +1559,10 @@ function autosave() {
 document.querySelectorAll('section.sec').forEach(sec => {
   const key = 'sec.' + sec.dataset.sec;
   try { const v = localStorage.getItem(key); if (v === '1') sec.classList.add('open'); else if (v === '0') sec.classList.remove('open'); } catch (e) {}
-  sec.querySelector('h2').onclick = () => { sec.classList.toggle('open'); try { localStorage.setItem(key, sec.classList.contains('open') ? '1' : '0'); } catch (e) {} };
+  sec.querySelector('h2').onclick = () => {
+    sec.classList.toggle('open'); try { localStorage.setItem(key, sec.classList.contains('open') ? '1' : '0'); } catch (e) {}
+    if (sec.dataset.sec === 'templates' && sec.classList.contains('open')) refreshSetCards();
+  };
 });
 function openSection(name) { const sec = document.querySelector(`section.sec[data-sec="${name}"]`); if (sec && !sec.classList.contains('open')) sec.querySelector('h2').click(); }
 
@@ -1308,7 +1572,7 @@ function openSection(name) { const sec = document.querySelector(`section.sec[dat
     if (d.g !== g) { g = d.g; grp = document.createElement('optgroup'); grp.label = g; sel.append(grp); }
     const o = document.createElement('option'); o.value = d.id; o.textContent = d.label + (d.req ? '  ★ required' : ''); grp.append(o);
   }
-  sel.oninput = () => { touch(); project.preset = sel.value; syncPresetNote(); syncVideoUI(); render(); };
+  sel.oninput = () => { touch(); project.preset = sel.value; syncPresetNote(); syncVideoUI(); render(); scheduleSetCards(); };
 })();
 function syncPresetNote() {
   const d = curDev(); $('preset').value = d.id;
@@ -1320,11 +1584,26 @@ function fillFontSelect(sel) {
 }
 function fillWeightSelect(sel) { WEIGHTS.forEach(([v, l]) => { const o = document.createElement('option'); o.value = v; o.textContent = l; sel.append(o); }); }
 fillFontSelect($('hFont')); fillFontSelect($('sFont')); fillWeightSelect($('hWeight')); fillWeightSelect($('sWeight'));
-GRADIENTS.forEach(([a, b]) => {
-  const s = document.createElement('div'); s.className = 'swatch'; s.style.background = `linear-gradient(135deg,${a},${b})`; s.title = `${a} → ${b}`;
-  s.onclick = () => { touch(); const S = cur(); S.bg1 = a; S.bg2 = b; if (S.bgType === 'solid') S.bgType = 'linear'; syncControls(); render(); };
-  $('swatches').append(s);
+/* a slide-shaped object carrying only a look, for rendering and comparing backdrops */
+function lookSlide(look) { return { ...defaultSlide(), ...LOOK_DEFAULTS, bg3: look.bg2, ...look }; }
+function sameLook(a, b) { return LOOK_KEYS.every(k => k === 'shapeColor' && a.shapes === 'none' ? true : String(a[k]) === String(b[k])); }
+function applyLook(look) {
+  touch(); const S = cur(), L = lookSlide(look);
+  for (const k of LOOK_KEYS) S[k] = L[k];
+  syncControls(); render();
+}
+BG_LOOKS.forEach(look => {
+  const b = document.createElement('button'); b.className = 'look'; b.type = 'button'; b.title = look.name;
+  const cv = document.createElement('canvas'); cv.width = 160; cv.height = 100; b.append(cv);
+  drawBackdrop(cv.getContext('2d'), cv.width, cv.height, lookSlide(look), { thumb: true });
+  b.onclick = () => applyLook(look);
+  b._look = look;
+  $('bgLooks').append(b);
 });
+function syncLookSelection() {
+  const S = cur(), L = BG_LOOKS.map(lookSlide);
+  $('bgLooks').querySelectorAll('.look').forEach((b, i) => b.classList.toggle('sel', sameLook(S, L[i])));
+}
 
 /* =====================================================================
    Declarative control binding (sidebar ↔ current slide)
@@ -1343,7 +1622,7 @@ const CONTROLS = [
   { id:'glow', path:'glow', kind:'range', div:100, fmt:pct, def:0 },
   { id:'glowColor', path:'glowColor', kind:'color' },
   { id:'bgType', path:'bgType', kind:'select' },
-  { id:'bg1', path:'bg1', kind:'color' }, { id:'bg2', path:'bg2', kind:'color' },
+  { id:'bg1', path:'bg1', kind:'color' }, { id:'bg2', path:'bg2', kind:'color' }, { id:'bg3', path:'bg3', kind:'color' },
   { id:'bgAngle', path:'bgAngle', kind:'range', div:1, fmt:v => v + '°', def:135 },
   { id:'shapes', path:'shapes', kind:'select' }, { id:'shapeColor', path:'shapeColor', kind:'color' },
   { id:'shapeAlpha', path:'shapeAlpha', kind:'range', div:100, fmt:pct, def:0.12 },
@@ -1402,6 +1681,7 @@ function syncControls() {
     else el.value = String(v);
     if (c.fmt) $(c.id + 'Val').textContent = c.fmt(v);
   }
+  syncLookSelection();
 }
 function syncAll() {
   syncPresetNote(); syncControls();
@@ -1514,7 +1794,12 @@ async function addFiles(fileList, targetPhone = null) {
       } else {
         const S = cur();
         if (targetPhone != null && S.phones[targetPhone]) S.phones[targetPhone].media = item.id;
-        else { const empty = S.phones.find(ph => !ph.media); (empty || AP()).media = item.id; }
+        else {
+          /* fill this slide's empty device first, then placeholders on other slides (a freshly built set), then replace the selected device */
+          let empty = S.phones.find(ph => !ph.media);
+          if (!empty) for (const s of project.slides) { empty = s.phones.find(ph => !ph.media); if (empty) break; }
+          (empty || AP()).media = item.id;
+        }
         if (item.kind === 'video') probeAudio(item);
       }
     } catch (e) {
@@ -1522,7 +1807,7 @@ async function addFiles(fileList, targetPhone = null) {
       toast(`Could not read "${f.name}". ${hint}`, 'err', 5000);
     }
   }
-  refreshThumbs(); syncAudioControls(); syncVideoUI(); ensureLoop(); render(); refreshStrip(true);
+  refreshThumbs(); syncAudioControls(); syncVideoUI(); ensureLoop(); render(); refreshStrip(true); scheduleSetCards();
   if (soundtrack) toast(`Soundtrack set to "${soundtrack.name}" (${Math.round(soundtrack.duration)} s). It plays under your app preview.`, 'ok', 4000);
   else if (added) toast(`Added ${added} file${added > 1 ? 's' : ''}.`, 'ok', 1800);
 }
@@ -1536,7 +1821,7 @@ function removeMedia(id) {
   for (const s of project.slides) for (const ph of s.phones) if (ph.media === id) ph.media = null;
   if (project.video.music === id) project.video.music = null;
   DB.del(id);
-  refreshThumbs(); syncAudioControls(); syncVideoUI(); ensureLoop(); render(); refreshStrip(true);
+  refreshThumbs(); syncAudioControls(); syncVideoUI(); ensureLoop(); render(); refreshStrip(true); scheduleSetCards();
 }
 function refreshThumbs() {
   const box = $('thumbs'); box.innerHTML = '';
@@ -1594,10 +1879,10 @@ window.addEventListener('paste', e => {
    ===================================================================== */
 function applyTemplate(t) {
   touch();
-  const S = cur();
+  const S = cur(), d = defaultSlide();
+  for (const k of [...LOOK_KEYS, 'glow', 'glowColor']) S[k] = d[k];   // a style owns the whole backdrop: no stale accent or glow bleeds through
   Object.assign(S, deepClone(t.st));
-  if (!('glow' in t.st)) S.glow = 0;
-  if (!('shapeColor' in t.st)) S.shapeColor = '#ffffff';
+  if (!('bg3' in t.st)) S.bg3 = S.bg2;
   Object.assign(S.head, t.head); Object.assign(S.subx, t.sub);
   const old = S.phones;
   const used = new Set(); const nextMedia = () => { const m = media.find(x => !used.has(x.id)); if (m) used.add(m.id); return m ? m.id : null; };
@@ -1623,6 +1908,140 @@ $('applyStyleAll').onclick = () => {
   touch(); const S = cur();
   for (const s of project.slides) if (s !== S) for (const k of STYLE_KEYS) s[k] = deepClone(S[k]);
   refreshStrip(true); toast('Style applied to all slides.', 'ok', 2000);
+};
+
+/* =====================================================================
+   Complete-set templates
+   ===================================================================== */
+const screenshots = () => media.filter(m => m.kind === 'image');
+/* merge a partial style into a slide; head/subx are merged field by field */
+function applyPartial(s, o) {
+  for (const k in o) {
+    if (k === 'head' || k === 'subx') Object.assign(s[k], o[k]);
+    else s[k] = typeof o[k] === 'object' && o[k] !== null ? deepClone(o[k]) : o[k];
+  }
+}
+/* one slide of a set: the template's base look, its per-slide variation, then the layout spec */
+function slideFromSet(t, spec, i) {
+  const s = defaultSlide();
+  applyPartial(s, t.base);
+  if (t.vary) applyPartial(s, t.vary(i) || {});
+  if (spec.st) applyPartial(s, spec.st);
+  s.phones = spec.phones.map(p => ({ media: null, ...p }));
+  s.textPos = spec.textPos || 'top'; s.textAlign = spec.textAlign || 'center';
+  s.headline = spec.sh || ''; s.sub = spec.ss || ''; s.sampleHead = !!spec.sh; s.sampleSub = !!spec.ss;
+  if (spec.badge) s.badge = spec.badge;
+  if (spec.stars) { s.stars = true; s.starsText = spec.starsText || '4.9 · 2,000 Ratings'; }
+  return s;
+}
+/* a lone phone left over from a multi-device layout goes back to the middle */
+function recenterSingle(s) {
+  if (s.phones.length === 1 && Math.abs(s.phones[0].x) > 0.1) s.phones[0] = { ...s.phones[0], x: 0, y: 0.06, tilt: 0, scale: 0.95 };
+}
+/* what "Build set" would produce: one slide per layout, every screenshot used once, in library order */
+function planSet(t) {
+  const shots = screenshots(), slides = [];
+  if (!shots.length) return { slides: t.slides.map((spec, i) => slideFromSet(t, spec, i)), used: 0, left: 0 };
+  let k = 0, i = 0;
+  while (k < shots.length && slides.length < MAX_SLIDES) {
+    const s = slideFromSet(t, t.slides[i % t.slides.length], slides.length); i++;
+    const remain = shots.length - k;
+    if (s.phones.length > remain) { s.phones = s.phones.slice(0, remain); recenterSingle(s); }
+    for (const ph of s.phones) ph.media = shots[k++].id;
+    slides.push(s);
+  }
+  return { slides, used: k, left: shots.length - k };
+}
+/* apply the template's look and layouts to the existing slides, keeping their media and real captions */
+function restyleSet(t) {
+  return project.slides.map((old, i) => {
+    const s = slideFromSet(t, t.slides[i % t.slides.length], i); s.id = old.id;
+    const oldMedia = old.phones.map(p => p.media).filter(Boolean);
+    s.phones.forEach((ph, j) => { ph.media = oldMedia[j] || null; });
+    for (let j = s.phones.length; j < oldMedia.length && j < MAX_PHONES; j++) s.phones.push({ ...old.phones[j], media: oldMedia[j] });   // never drop a screenshot
+    if (old.headline.trim() && !old.sampleHead) { s.headline = old.headline; s.sampleHead = false; }
+    if (old.sub.trim() && !old.sampleSub) { s.sub = old.sub; s.sampleSub = false; }
+    if (old.badge.trim()) s.badge = old.badge;
+    if (old.stars) { s.stars = true; s.starsText = old.starsText; }
+    s.fillMode = old.fillMode;
+    return s;
+  });
+}
+function commitSet(slides, msg) {
+  touch();
+  project.slides = slides; project.active = 0; activePhone = 0;
+  sanitizeProject(); flushHistory(); syncAll(); refreshStrip(true); render();
+  toast(msg, 'ok', 4500);
+}
+/* the device the template cards and dialog are drawn for: the current one, or the iPhone 6.9″ for previews and landscape */
+function cardDev() { const d = curDev(); return d.video || d.kind.endsWith('-land') ? DEV.ip69 : d; }
+function renderSlideCanvas(s, h, cls) {
+  const dev = cardDev(), cv = document.createElement('canvas');
+  cv.height = h * 2; cv.width = Math.round(cv.height * dev.w / dev.h); if (cls) cv.className = cls;
+  const c = cv.getContext('2d'); c.imageSmoothingQuality = 'medium';
+  drawScene(c, cv.width, cv.height, s, dev, { thumb: true });
+  return cv;
+}
+let setCardsDirty = true, _setCardTimer = null;
+function refreshSetCards() {
+  const sec = document.querySelector('section.sec[data-sec="templates"]');
+  if (!sec.classList.contains('open')) { setCardsDirty = true; return; }
+  const grid = $('setGrid'); grid.innerHTML = '';
+  const shots = screenshots();
+  SET_TEMPLATES.forEach(t => {
+    const card = document.createElement('button'); card.className = 'setcard'; card.type = 'button'; card.title = `${t.name}: ${t.desc}`;
+    const strip = document.createElement('div'); strip.className = 'strip';
+    t.slides.slice(0, 3).forEach((spec, i) => {
+      const s = slideFromSet(t, spec, i);
+      if (shots.length) { s.phones.forEach((ph, j) => { ph.media = shots[(i + j) % shots.length].id; }); }
+      strip.append(renderSlideCanvas(s, 84));
+    });
+    const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = t.name;
+    const ds = document.createElement('div'); ds.className = 'ds'; ds.textContent = t.desc;
+    card.append(strip, nm, ds);
+    card.onclick = () => openSetDialog(t);
+    grid.append(card);
+  });
+  setCardsDirty = false;
+}
+function scheduleSetCards() {
+  setCardsDirty = true;
+  if (_setCardTimer) return;
+  _setCardTimer = setTimeout(() => { _setCardTimer = null; if (setCardsDirty) refreshSetCards(); }, 250);
+}
+let setDlgTemplate = null;
+function openSetDialog(t) {
+  if (ui.busy) return;
+  setDlgTemplate = t;
+  $('setTitle').textContent = t.name;
+  $('setDesc').textContent = t.desc;
+  const plan = planSet(t), n = screenshots().length, cur_ = project.slides.length;
+  const pv = $('setPreview'); pv.innerHTML = '';
+  plan.slides.forEach((s, i) => { const cv = renderSlideCanvas(s, 156); cv.style.animationDelay = (i * 40) + 'ms'; pv.append(cv); });
+  $('setPlan').innerHTML = '';
+  const b = document.createElement('b');
+  const add = (text) => { const p = document.createElement('div'); p.textContent = text; $('setPlan').append(p); };
+  if (!n) {
+    b.textContent = `Build set creates ${plan.slides.length} slides with placeholder screens. `;
+    $('setPlan').append(b, document.createTextNode('Drop screenshots into the library afterwards and they fill the slides in order.'));
+  } else {
+    b.textContent = `Build set creates ${plan.slides.length} slide${plan.slides.length > 1 ? 's' : ''} from ${plan.used} of your ${n} screenshot${n > 1 ? 's' : ''}, in library order`;
+    $('setPlan').append(b, document.createTextNode(plan.left ? `. ${plan.left} won't fit: App Store Connect allows ${MAX_SLIDES} per device size.` : ', so every screenshot ends up in the set.'));
+  }
+  add(`Restyle keeps your current ${cur_} slide${cur_ > 1 ? 's' : ''}, screenshots and captions and only changes the look and layouts. Both are undoable (⌘Z).`);
+  $('setRestyle').textContent = `Restyle my ${cur_} slide${cur_ > 1 ? 's' : ''}`;
+  $('setDlg').showModal();
+}
+$('setBuild').onclick = () => {
+  const t = setDlgTemplate; if (!t) return;
+  const plan = planSet(t); $('setDlg').close();
+  commitSet(plan.slides, plan.used ? `Built ${plan.slides.length} slides in the "${t.name}" look from ${plan.used} screenshots.` : `Built ${plan.slides.length} "${t.name}" slides. Add screenshots to fill them.`);
+  if (plan.left) toast(`${plan.left} screenshot${plan.left > 1 ? 's' : ''} left out: App Store Connect allows ${MAX_SLIDES} per device size.`, 'warn', 6000);
+};
+$('setRestyle').onclick = () => {
+  const t = setDlgTemplate; if (!t) return;
+  $('setDlg').close();
+  commitSet(restyleSet(t), `Restyled ${project.slides.length} slide${project.slides.length > 1 ? 's' : ''} in the "${t.name}" look.`);
 };
 
 /* =====================================================================
@@ -1749,34 +2168,110 @@ function grainPattern(c) {
   return c.createPattern(_grainCv, 'repeat');
 }
 
+/* a linear gradient across the whole canvas at `angle` degrees (0 = left→right, 90 = top→bottom) */
+function gradLine(c, W, H, angle) {
+  const a = angle * Math.PI / 180, cx = W / 2, cy = H / 2, r = Math.hypot(W, H) / 2;
+  return c.createLinearGradient(cx - Math.cos(a) * r, cy - Math.sin(a) * r, cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+}
 function drawBackground(c, W, H, S) {
-  if (S.bgType === 'solid') { c.fillStyle = S.bg1; c.fillRect(0, 0, W, H); return; }
-  if (S.bgType === 'radial') {
-    const g = c.createRadialGradient(W * 0.35, H * 0.28, 0, W * 0.35, H * 0.28, Math.max(W, H) * 1.05);
-    g.addColorStop(0, S.bg1); g.addColorStop(1, S.bg2); c.fillStyle = g; c.fillRect(0, 0, W, H); return;
-  }
+  const bg1 = S.bg1, bg2 = S.bg2, bg3 = S.bg3 || S.bg2, type = S.bgType;
+  const fill = g => { c.fillStyle = g; c.fillRect(0, 0, W, H); };
+  /* a soft radial glow of `col` at (fx, fy), fading to transparent */
   const blob = (fx, fy, fr, col, al) => {
     const g = c.createRadialGradient(W * fx, H * fy, 0, W * fx, H * fy, Math.max(W, H) * fr);
-    g.addColorStop(0, hexA(col, al)); g.addColorStop(1, hexA(col, 0)); c.fillStyle = g; c.fillRect(0, 0, W, H);
+    g.addColorStop(0, hexA(col, al)); g.addColorStop(0.5, hexA(col, al * 0.45)); g.addColorStop(1, hexA(col, 0)); fill(g);
   };
-  if (S.bgType === 'aurora') {
-    c.fillStyle = S.bg2; c.fillRect(0, 0, W, H);
-    blob(0.20, 0.18, 0.55, S.bg1, 0.95); blob(0.85, 0.50, 0.45, S.bg1, 0.55); blob(0.50, 1.00, 0.6, '#ffffff', 0.20); return;
+  const twoStop = (angle, a, b) => { const g = gradLine(c, W, H, angle); g.addColorStop(0, a); g.addColorStop(1, b); return g; };
+  if (type === 'solid') { fill(bg1); return; }
+  if (type === 'radial') {
+    const g = c.createRadialGradient(W * 0.35, H * 0.28, 0, W * 0.35, H * 0.28, Math.max(W, H) * 1.05);
+    g.addColorStop(0, bg1); g.addColorStop(1, bg2); fill(g); return;
   }
-  if (S.bgType === 'mesh') {
-    const a = S.bgAngle * Math.PI / 180, cx = W / 2, cy = H / 2, r = Math.hypot(W, H) / 2;
-    const g = c.createLinearGradient(cx - Math.cos(a) * r, cy - Math.sin(a) * r, cx + Math.cos(a) * r, cy + Math.sin(a) * r);
-    g.addColorStop(0, S.bg1); g.addColorStop(1, S.bg2); c.fillStyle = g; c.fillRect(0, 0, W, H);
-    blob(0.15, 0.12, 0.5, S.bg2, 0.9); blob(0.9, 0.3, 0.45, S.bg1, 0.9); blob(0.25, 0.9, 0.5, S.bg1, 0.7); blob(0.8, 0.85, 0.4, '#ffffff', 0.14); return;
+  if (type === 'horizon') {
+    const g = gradLine(c, W, H, S.bgAngle); g.addColorStop(0, bg1); g.addColorStop(0.5, bg3); g.addColorStop(1, bg2); fill(g); return;
   }
-  const a = S.bgAngle * Math.PI / 180, cx = W / 2, cy = H / 2, r = Math.hypot(W, H) / 2;
-  const g = c.createLinearGradient(cx - Math.cos(a) * r, cy - Math.sin(a) * r, cx + Math.cos(a) * r, cy + Math.sin(a) * r);
-  g.addColorStop(0, S.bg1); g.addColorStop(1, S.bg2); c.fillStyle = g; c.fillRect(0, 0, W, H);
+  if (type === 'conic') {
+    if (c.createConicGradient) {
+      const g = c.createConicGradient((S.bgAngle - 90) * Math.PI / 180, W / 2, H * 0.45);
+      g.addColorStop(0, bg1); g.addColorStop(0.33, bg3); g.addColorStop(0.66, bg2); g.addColorStop(1, bg1); fill(g);
+    } else { const g = gradLine(c, W, H, S.bgAngle); g.addColorStop(0, bg1); g.addColorStop(0.5, bg3); g.addColorStop(1, bg2); fill(g); }
+    blob(0.5, 0.45, 0.55, '#ffffff', 0.12); return;
+  }
+  if (type === 'aurora') {
+    fill(twoStop(S.bgAngle, bg2, shadeHex(bg2, -0.35)));
+    blob(0.18, 0.15, 0.55, bg1, 0.95); blob(0.88, 0.42, 0.50, bg3, 0.80); blob(0.35, 0.78, 0.50, bg1, 0.55); blob(0.78, 1.00, 0.45, bg3, 0.50); blob(0.5, 0.5, 0.7, '#ffffff', 0.08);
+    return;
+  }
+  if (type === 'mesh') {
+    fill(twoStop(S.bgAngle, bg1, bg2));
+    blob(0.12, 0.10, 0.50, bg2, 0.90); blob(0.92, 0.28, 0.45, bg3, 0.90); blob(0.22, 0.88, 0.50, bg3, 0.75); blob(0.85, 0.85, 0.45, bg1, 0.85); blob(0.55, 0.5, 0.35, '#ffffff', 0.12);
+    return;
+  }
+  if (type === 'spotlight') {
+    fill(bg2); blob(0.5, 0.18, 0.70, bg1, 0.90); blob(0.5, 1.05, 0.60, bg3, 0.45);
+    const vg = c.createRadialGradient(W / 2, H * 0.4, Math.min(W, H) * 0.2, W / 2, H * 0.4, Math.hypot(W, H) * 0.65);
+    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.45)'); fill(vg); return;
+  }
+  if (type === 'split') {
+    fill(bg2);
+    const a = S.bgAngle * Math.PI / 180, nx = Math.cos(a), ny = Math.sin(a), px = -ny, py = nx, cx = W / 2, cy = H / 2, L = Math.hypot(W, H);
+    c.save(); c.beginPath();
+    c.moveTo(cx + px * L, cy + py * L); c.lineTo(cx - px * L, cy - py * L);
+    c.lineTo(cx - px * L - nx * L, cy - py * L - ny * L); c.lineTo(cx + px * L - nx * L, cy + py * L - ny * L); c.closePath();
+    c.shadowColor = 'rgba(0,0,0,0.28)'; c.shadowBlur = Math.min(W, H) * 0.05; c.fillStyle = bg1; c.fill(); c.restore();
+    blob(0.2, 0.2, 0.5, bg3, 0.18); return;
+  }
+  if (type === 'stripes') {
+    fill(twoStop(S.bgAngle + 90, bg1, shadeHex(bg1, -0.12)));
+    c.save(); c.translate(W / 2, H / 2); c.rotate(S.bgAngle * Math.PI / 180);
+    const L = Math.hypot(W, H), band = Math.min(W, H) * 0.11;
+    for (let x = -L, i = 0; x < L; x += band * 2, i++) { c.fillStyle = hexA(i % 2 ? bg2 : bg3, 0.45); c.fillRect(x, -L, band, 2 * L); }
+    c.restore(); return;
+  }
+  fill(twoStop(S.bgAngle, bg1, bg2));
 }
 function drawShapes(c, W, H, S) {
   if (S.shapes === 'none') return;
   c.save(); c.globalAlpha = S.shapeAlpha; c.fillStyle = S.shapeColor; c.strokeStyle = S.shapeColor;
-  if (S.shapes === 'dots') {
+  const rnd = seeded(0x5EED), col = S.shapeColor;
+  if (S.shapes === 'bokeh') {
+    for (let i = 0; i < 16; i++) {
+      const x = rnd() * W, y = rnd() * H, r = W * (0.03 + rnd() * 0.13);
+      const g = c.createRadialGradient(x, y, r * 0.2, x, y, r);
+      g.addColorStop(0, hexA(col, 0.9)); g.addColorStop(0.82, hexA(col, 0.55)); g.addColorStop(1, hexA(col, 0));
+      c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill();
+    }
+  } else if (S.shapes === 'blob') {
+    /* one large organic shape anchored at the lower right, smoothed through midpoints */
+    const cx = W * 0.68, cy = H * 0.92, pts = [];
+    for (let i = 0; i < 9; i++) { const a = i / 9 * Math.PI * 2, r = W * (0.38 + rnd() * 0.2); pts.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r * 0.8]); }
+    c.beginPath();
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i], q = pts[(i + 1) % pts.length], mx = (p[0] + q[0]) / 2, my = (p[1] + q[1]) / 2;
+      i === 0 ? c.moveTo(mx, my) : c.quadraticCurveTo(p[0], p[1], mx, my);
+    }
+    const p0 = pts[0], p1 = pts[1]; c.quadraticCurveTo(p0[0], p0[1], (p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2);
+    c.closePath(); c.fill();
+  } else if (S.shapes === 'squircles') {
+    for (let i = 0; i < 5; i++) {
+      const s = W * (0.22 + rnd() * 0.3), x = rnd() * W, y = rnd() * H, rot = (rnd() - 0.5) * 0.7;
+      c.save(); c.translate(x, y); c.rotate(rot); rr(c, -s / 2, -s / 2, s, s, s * 0.3); c.fill(); c.restore();
+    }
+  } else if (S.shapes === 'confetti') {
+    for (let i = 0; i < 48; i++) {
+      const s = W * (0.012 + rnd() * 0.02), x = rnd() * W, y = rnd() * H, rot = rnd() * Math.PI, kind = rnd();
+      c.save(); c.translate(x, y); c.rotate(rot);
+      if (kind < 0.4) { c.beginPath(); c.arc(0, 0, s / 2, 0, 7); c.fill(); }
+      else if (kind < 0.75) { rr(c, -s / 2, -s / 4, s, s / 2, s / 6); c.fill(); }
+      else { c.lineWidth = s * 0.28; c.lineCap = 'round'; c.beginPath(); c.moveTo(-s / 2, 0); c.lineTo(s / 2, 0); c.moveTo(0, -s / 2); c.lineTo(0, s / 2); c.stroke(); }
+      c.restore();
+    }
+  } else if (S.shapes === 'lines') {
+    c.save(); c.translate(W / 2, H / 2); c.rotate(-Math.PI / 4);
+    const L = Math.hypot(W, H), sp = W * 0.06; c.lineWidth = Math.max(1, W * 0.004); c.beginPath();
+    for (let x = -L; x <= L; x += sp) { c.moveTo(x, -L); c.lineTo(x, L); }
+    c.stroke(); c.restore();
+  } else if (S.shapes === 'dots') {
     const sp = W * 0.07, rd = W * 0.006;
     for (let yy = sp / 2; yy < H; yy += sp) for (let xx = sp / 2; xx < W; xx += sp) { c.beginPath(); c.arc(xx, yy, rd, 0, 7); c.fill(); }
   } else if (S.shapes === 'grid') {
@@ -1798,6 +2293,15 @@ function drawShapes(c, W, H, S) {
     }
   }
   c.restore();
+}
+/* background + shapes + vignette: everything behind the devices */
+function drawBackdrop(c, W, H, S, opts = {}) {
+  drawBackground(c, W, H, S);
+  drawShapes(c, W, H, S);
+  if (S.vignette > 0) {
+    const g = c.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.hypot(W, H) / 2);
+    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(0,0,0,${0.7 * S.vignette})`); c.fillStyle = g; c.fillRect(0, 0, W, H);
+  }
 }
 
 /* =====================================================================
@@ -1979,12 +2483,7 @@ function drawScene(c, W, H, S, dev, opts = {}) {
   c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
   c.shadowColor = 'transparent'; c.shadowBlur = 0; c.shadowOffsetX = 0; c.shadowOffsetY = 0; setSpacing(c, 0);
   const layout = opts.layout; if (layout) { layout.phones = []; layout.text = null; }
-  drawBackground(c, W, H, S);
-  drawShapes(c, W, H, S);
-  if (S.vignette > 0) {
-    const g = c.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.hypot(W, H) / 2);
-    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(0,0,0,${0.7 * S.vignette})`); c.fillStyle = g; c.fillRect(0, 0, W, H);
-  }
+  drawBackdrop(c, W, H, S, opts);
 
   /* text block — measured first so the device area can be reserved */
   const base = Math.min(W, H);
@@ -2479,19 +2978,60 @@ $('exportBtn').onclick = async () => {
     grid.append(l);
   }
   for (const [id, key] of [['exScope', 'scope'], ['exFormat', 'format'], ['exLayout', 'layout'], ['exLocale', 'locale']]) {
-    $(id).oninput = e => { project.export[key] = e.target.value; autosave(); if (key === 'format') render(); };
+    $(id).oninput = e => { project.export[key] = e.target.value; autosave(); if (key === 'format') render(); syncExportSummary(); };
   }
+  $('exIncludeUnused').oninput = e => { project.export.includeUnused = e.target.checked; autosave(); syncExportSummary(); };
+  $('exSizes').addEventListener('change', syncExportSummary);   // after each checkbox's own onchange has updated the size list
 })();
+/* screenshots in the library that no slide shows yet */
+function unusedScreenshots() {
+  const used = new Set(project.slides.flatMap(s => s.phones.map(p => p.media)));
+  return screenshots().filter(m => !used.has(m.id));
+}
+/* give every unused screenshot its own slide (the last slide's look and device placement), so the exported set has them all */
+function addSlidesForUnused() {
+  const un = unusedScreenshots(); if (!un.length) return { added: 0, left: 0 };
+  touch();
+  const last = project.slides[project.slides.length - 1];
+  let added = 0;
+  for (const m of un) {
+    if (project.slides.length >= MAX_SLIDES) break;
+    const s = deepClone(last); s.id = uid(); s.fillMode = false;
+    s.phones = [{ ...last.phones[0], media: m.id }];
+    s.headline = ''; s.sub = ''; s.badge = ''; s.stars = false; s.sampleHead = false; s.sampleSub = false;
+    project.slides.push(s); added++;
+  }
+  flushHistory();
+  return { added, left: un.length - added };
+}
+function willAddUnused() { return project.export.scope === 'all' && project.export.includeUnused && unusedScreenshots().length > 0; }
+function syncExportSummary() {
+  const un = unusedScreenshots(), all = project.export.scope === 'all';
+  $('exUnusedRow').hidden = !un.length;
+  $('exIncludeUnused').disabled = !all;
+  $('exUnusedText').textContent = `Add a slide for ${un.length === 1 ? 'the 1 screenshot' : `each of the ${un.length} screenshots`} not on any slide yet, so the set includes every screenshot` + (all ? '' : ' (all slides only)');
+  const slides = all ? project.slides.length + (willAddUnused() ? Math.min(un.length, MAX_SLIDES - project.slides.length) : 0) : 1;
+  const sizes = project.export.sizes.length;
+  $('exSummary').textContent = sizes ? `${slides} slide${slides > 1 ? 's' : ''} × ${sizes} size${sizes > 1 ? 's' : ''} = ${slides * sizes} file${slides * sizes > 1 ? 's' : ''}` : 'Pick at least one size';
+}
 function openExportDialog() {
   if (ui.busy) return;
   $('exScope').value = project.export.scope; $('exFormat').value = project.export.format; $('exLayout').value = project.export.layout; $('exLocale').value = project.export.locale;
   $('exSizes').querySelectorAll('input').forEach(cb => { cb.checked = project.export.sizes.includes(cb.value); });
+  $('exIncludeUnused').checked = project.export.includeUnused;
+  syncExportSummary();
   $('exportDlg').showModal();
 }
 $('exportSetBtn').onclick = openExportDialog;
 $('exportSetGo').onclick = async () => {
   const sizes = project.export.sizes.map(id => DEV[id]).filter(Boolean);
   if (!sizes.length) { toast('Pick at least one size.', 'warn'); return; }
+  let addedNote = '';
+  if (willAddUnused()) {
+    const { added, left } = addSlidesForUnused();
+    if (added) { refreshStrip(true); addedNote = ` Added ${added} slide${added > 1 ? 's' : ''} for screenshots that weren't on any slide.`; }
+    if (left) toast(`${left} screenshot${left > 1 ? 's' : ''} still left out: App Store Connect allows ${MAX_SLIDES} per device size.`, 'warn', 6000);
+  }
   const slides = project.export.scope === 'current' ? [[cur(), project.active]] : project.slides.map((s, i) => [s, i]);
   $('exportDlg').close();
   const fmt = project.export.format, ext = fmt === 'jpg' ? 'jpg' : 'png';
@@ -2512,7 +3052,7 @@ $('exportSetGo').onclick = async () => {
     setProgress(1, 'Zipping…'); await sleep(0);
     const zip = Bin.zipStore(entries);
     downloadBlob(new Blob([zip], { type: 'application/zip' }), `${slug(project.name, 'screenshots')}-appstore-screenshots.zip`);
-    toast(`Exported ${total} ${ext.toUpperCase()} file${total > 1 ? 's' : ''} (${(zip.length / 1e6).toFixed(1)} MB zip).`, 'ok', 5000);
+    toast(`Exported ${total} ${ext.toUpperCase()} file${total > 1 ? 's' : ''}: ${slides.length} slide${slides.length > 1 ? 's' : ''} × ${sizes.length} size${sizes.length > 1 ? 's' : ''} (${(zip.length / 1e6).toFixed(1)} MB zip).${addedNote}`, 'ok', 6000);
   } catch (e) { toast('Export failed: ' + e.message, 'err', 6000); }
   setProgress(null); setBusy(false);
 };
@@ -2796,6 +3336,9 @@ async function openChecklist() {
   add(noHead.length ? 'warn' : 'ok', noHead.length ? `No headline on slide${noHead.length > 1 ? 's' : ''} ${noHead.join(', ')}` : 'Every slide has a headline', 'Optional, but captions are what converts. Keep them short enough to read at thumbnail size.');
   const sample = slides.map((s, i) => [s, i]).filter(([s]) => s.sampleHead || s.sampleSub).map(([, i]) => i + 1);
   if (sample.length) add('warn', `Sample copy still on slide${sample.length > 1 ? 's' : ''} ${sample.join(', ')}`, 'Replace the preset placeholder text with your own.');
+  const unused = unusedScreenshots();
+  if (unused.length) add('warn', `${unused.length} screenshot${unused.length > 1 ? 's' : ''} in the library not on any slide`, `${unused.map(m => m.name).join(', ')}. "Export set" adds a slide for each unless you untick it, or build a complete set from a template to lay them all out.`);
+  else if (screenshots().length) add('ok', 'Every screenshot in the library is on a slide');
   add('ok', `Export format: ${project.export.format === 'jpg' ? 'JPEG' : 'PNG, flattened RGB with no alpha channel'}`, 'Both are accepted. Files are written pixel-exact at each selected size, sRGB.');
   const small = media.filter(m => m.kind === 'image' && m.h < 1500 && m.w < 1500);
   if (small.length) add('warn', `${small.length} low-resolution screenshot${small.length > 1 ? 's' : ''} in the library`, `${small.map(m => `${m.name} (${m.w}×${m.h})`).join(', ')} — capture from the device or Simulator at native resolution to avoid blur.`);
@@ -2894,7 +3437,7 @@ if (location.protocol === 'http:' || location.protocol === 'https:') $('offlineB
     else { const old = localStorage.getItem('sstudio'); if (old) project = migrateV1(JSON.parse(old)); }
   } catch (e) { project = defaultProject(); }
   sanitizeProject();
-  syncAll(); refreshStrip(true); render();
+  syncAll(); refreshStrip(true); render(); refreshSetCards();
   probeEncoders().then(syncVideoUI);
   for (const m of media) if (m.kind === 'video') probeAudio(m);
 })();
